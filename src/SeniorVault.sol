@@ -14,4 +14,7 @@ contract SeniorVault {
         _balances[msg.sender] +=  msg.value;
         emit DepositedEth(msg.sender, msg.value);
     }
+
+
+    function depositERC20(uint256 amount) external{}
 }
