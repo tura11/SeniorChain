@@ -10,6 +10,7 @@ contract SeniorVault {
     IERC20 public token;
 
     event DepositedEth(address indexed user, uint256 amount);
+    event DepositedERC20(address indexed user, uint256 amount);
 
     function deposit() external payable {
         _balances[msg.sender] +=  msg.value;
@@ -19,5 +20,7 @@ contract SeniorVault {
 
     function depositERC20(uint256 amount) external{
         token.safeTransferFrom(msg.sender, address(this), amount);
+
+        emit DepositedERC20(msg.sender, amount);
     }
 }
