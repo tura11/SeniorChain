@@ -12,6 +12,16 @@ contract SeniorVault {
     event DepositedEth(address indexed user, uint256 amount);
     event DepositedERC20(address indexed user, uint256 amount);
 
+    struct Request{
+        address from;
+        uint256 amount;
+        bool approved;
+    }
+
+
+    mapping(uint256 => Request) private _requests;
+
+
     function deposit() external payable {
         _balances[msg.sender] +=  msg.value;
         emit DepositedEth(msg.sender, msg.value);
@@ -22,5 +32,14 @@ contract SeniorVault {
         token.safeTransferFrom(msg.sender, address(this), amount);
 
         emit DepositedERC20(msg.sender, amount);
+    }
+
+
+    function _createDepositRequest(address from, uint256 amount, uint256 reqeuestId) internal {
+        _requests[reqeuestId] = Request({
+            from: from,
+            amount: amount,
+            approved: false
+        });
     }
 }
