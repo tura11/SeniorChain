@@ -41,5 +41,7 @@ contract SeniorVault {
         emit DepositedERC20(tokenAddress, amount);
     }
 
+    //todo some tests
+
 
 }
