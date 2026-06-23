@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.31;
 
-import {IERC20} from "@openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin-contracts-upgradeable/contracts/token/ERC20/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract SeniorVault {
     using SafeERC20 for IERC20;
@@ -26,12 +26,12 @@ contract SeniorVault {
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address senior;
     address guardian;
+    address pendingGuardian;
 
 
     mapping(uint256 => Request) private _requests;
     mapping(address => bool ) public isWhiteListed;
     mapping(address => uint256) private _balances; 
-    mapping(address => bool) private isGuardian;
     bool guardianApprove;
 
 
@@ -66,17 +66,22 @@ contract SeniorVault {
 
     
 
-    function setGuardian(address _guardian) public onlySenior {
+    function proposeGuardian(address _guardian) public onlySenior {
         if(_guardian == address(0)) revert SeniorVault__InvalidAddress();
-        if(isGuardian[guardian] == true && guardianApprove == false){
-            revert SeniorVault__PreviousGuardianDidntApproveYourCandidacy();
+        if(guardian == address(0)) {
+            guardian = _guardian;
+        }else{
+            pendingGuardian = _guardian;
         }
-        guardian = _guardian;
-        isGuardian[_guardian] = true;
     }
 
-    function approveNewGuardian() internal onlyGuardian {
-        guardianApprove = true;
+
+
+
+
+    function approveNewGuardian() external onlyGuardian {
+        guardian = pendingGuardian;
+        pendingGuardian = address(0);
     }
 
 
