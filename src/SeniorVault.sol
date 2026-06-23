@@ -7,6 +7,9 @@ import {SafeERC20} from "@openzeppelin-contracts-upgradeable/contracts/token/ERC
 contract SeniorVault {
     using SafeERC20 for IERC20;
 
+
+    error SeniorVault__InvalidAddress();
+    error SeniorVault__PreviousGuardianDidntApproveYourCandidacy();
     
 
 
@@ -21,27 +24,60 @@ contract SeniorVault {
 
 
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address senior;
+    address guardian;
 
 
     mapping(uint256 => Request) private _requests;
     mapping(address => bool ) public isWhiteListed;
     mapping(address => uint256) private _balances; 
+    mapping(address => bool) private isGuardian;
+    bool guardianApprove;
 
 
-    function deposit() external payable {
+    constructor() {
+        senior = msg.sender;
+    }
+
+
+    modifier onlySenior() {
+        require(msg.sender == senior, "Unauthorized");
+        _;
+    }
+
+    modifier onlyGuardian() {
+         require(msg.sender == guardian, "Unauthorized");
+        _;
+    }
+    
+
+    function deposit() external payable onlySenior {
         _balances[ETH_ADDRESS] +=  msg.value;
         emit DepositedEth(msg.sender, msg.value);
     }
 
 
-    function depositERC20(address tokenAddress, uint256 amount) external {
+    function depositERC20(address tokenAddress, uint256 amount) external onlySenior {
         require(isWhiteListed[tokenAddress], "Token not whitelisted");
         IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amount);
         _balances[tokenAddress] += amount;
         emit DepositedERC20(tokenAddress, amount);
     }
 
-    //todo some tests
+    
+
+    function setGuardian(address _guardian) public onlySenior {
+        if(_guardian == address(0)) revert SeniorVault__InvalidAddress();
+        if(isGuardian[guardian] == true && guardianApprove == false){
+            revert SeniorVault__PreviousGuardianDidntApproveYourCandidacy();
+        }
+        guardian = _guardian;
+        isGuardian[_guardian] = true;
+    }
+
+    function approveNewGuardian() internal onlyGuardian {
+        guardianApprove = true;
+    }
 
 
 }
