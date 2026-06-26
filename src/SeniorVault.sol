@@ -27,6 +27,8 @@ contract SeniorVault {
     address senior;
     address guardian;
     address pendingGuardian;
+    address[] whiteListedAddresses;
+    address proposedSafeAddress;
 
 
     mapping(uint256 => Request) private _requests;
@@ -82,6 +84,18 @@ contract SeniorVault {
     function approveNewGuardian() external onlyGuardian {
         guardian = pendingGuardian;
         pendingGuardian = address(0);
+    }
+
+
+    function proposesSafeAddress(address safeAddress) public onlySenior {
+        if(tokenAddress == address(0)) revert SeniorVault__InvalidAddress();
+        proposedSafeAddress = safeAddress;
+    }
+
+
+    function approveAddress() external onlyGuardian {
+        whiteListedTokens.push(proposedSafeAddress);
+        proposedSafeAddress = address(0);
     }
 
 //todo guaridan functions
