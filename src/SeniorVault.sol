@@ -11,6 +11,9 @@ contract SeniorVault {
     error SeniorVault__InvalidAddress();
     error SeniorVault__PreviousGuardianDidntApproveYourCandidacy();
     error SeniorVault__NotProposed();
+    error SeniorVault__AddressNotWhiteListed();
+    error SeniorVault__NotEnoughMoney();
+    error SeniorVault__TransferFailed();
     
 
 
@@ -97,6 +100,19 @@ contract SeniorVault {
         if(!pendingRecipient[safeAddress]) revert SeniorVault__NotProposed();
         isWhiteListed[safeAddress] = true;
         pendingRecipient[safeAddress] = false;
+    }
+
+
+    function withdrawETH(address recipient, uint256 amount) external onlySenior {
+        if(!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
+        if(amount > _balances[ETH_ADDRESS]) revert SeniorVault__NotEnoughMoney();
+
+        _balances[ETH_ADDRESS] -= amount;
+
+
+        (bool success, ) = recipient.call{value: amount}("");
+        if(!success) revert SeniorVault__TransferFailed();
+        
     }
 
 //todo guaridan functions
