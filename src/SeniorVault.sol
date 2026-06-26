@@ -10,6 +10,7 @@ contract SeniorVault {
 
     error SeniorVault__InvalidAddress();
     error SeniorVault__PreviousGuardianDidntApproveYourCandidacy();
+    error SeniorVault__NotProposed();
     
 
 
@@ -27,13 +28,12 @@ contract SeniorVault {
     address senior;
     address guardian;
     address pendingGuardian;
-    address[] whiteListedAddresses;
-    address proposedSafeAddress;
 
 
     mapping(uint256 => Request) private _requests;
     mapping(address => bool ) public isWhiteListed;
     mapping(address => uint256) private _balances; 
+    mapping(address => bool ) private pendingRecipient;
     bool guardianApprove;
 
 
@@ -87,15 +87,16 @@ contract SeniorVault {
     }
 
 
-    function proposesSafeAddress(address safeAddress) public onlySenior {
-        if(tokenAddress == address(0)) revert SeniorVault__InvalidAddress();
-        proposedSafeAddress = safeAddress;
+    function proposesSafeAddresses(address safeAddress) public onlySenior {
+        if(safeAddress == address(0)) revert SeniorVault__InvalidAddress();
+        pendingRecipient[safeAddress] = true;
     }
 
 
-    function approveAddress() external onlyGuardian {
-        whiteListedTokens.push(proposedSafeAddress);
-        proposedSafeAddress = address(0);
+    function approveSafeAddress(address safeAddress) external onlyGuardian {
+        if(!pendingRecipient[safeAddress]) revert SeniorVault__NotProposed();
+        isWhiteListed[safeAddress] = true;
+        pendingRecipient[safeAddress] = false;
     }
 
 //todo guaridan functions
