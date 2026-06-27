@@ -115,6 +115,6 @@ contract SeniorVault {
         
     }
 
-//todo guaridan functions
+//todo tests
 
 }
