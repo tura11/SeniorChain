@@ -115,6 +115,16 @@ contract SeniorVault {
         
     }
 
-//todo tests
+
+    function withdrawERC20(address recipient, uint256 amount, address tokenAddress) external onlySenior {
+        if(!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
+        if(amount > _balances[tokenAddress]) revert SeniorVault__NotEnoughMoney();
+
+        _balances[tokenAddress] -= amount;
+        IERC20(tokenAddress).safeTransfer(recipient, amount);
+
+
+    }
+
 
 }
