@@ -14,17 +14,14 @@ contract SeniorVault {
     error SeniorVault__AddressNotWhiteListed();
     error SeniorVault__NotEnoughMoney();
     error SeniorVault__TransferFailed();
+    error SeniorVault__NotSenior();
+    error SeniorVault__NotGuardian();
     
 
 
     event DepositedEth(address indexed user, uint256 amount);
     event DepositedERC20(address indexed token, uint256 amount);
 
-    struct Request{
-        address from;
-        uint256 amount;
-        bool approved;
-    }
 
 
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -33,7 +30,6 @@ contract SeniorVault {
     address pendingGuardian;
 
 
-    mapping(uint256 => Request) private _requests;
     mapping(address => bool ) public isWhiteListed;
     mapping(address => uint256) private _balances; 
     mapping(address => bool ) private pendingRecipient;
@@ -46,12 +42,12 @@ contract SeniorVault {
 
 
     modifier onlySenior() {
-        require(msg.sender == senior, "Unauthorized");
+        _onlySenior();
         _;
     }
 
     modifier onlyGuardian() {
-         require(msg.sender == guardian, "Unauthorized");
+         _onlyGuardian();
         _;
     }
     
@@ -124,6 +120,15 @@ contract SeniorVault {
         IERC20(tokenAddress).safeTransfer(recipient, amount);
 
 
+    }
+
+
+    function _onlySenior() internal view{
+        if(msg.sender != senior) revert SeniorVault__NotSenior();
+    }
+
+    function _onlyGuardian() internal view{
+        if(msg.sender != guardian) revert SeniorVault__NotGuardian();
     }
 
 
