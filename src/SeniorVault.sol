@@ -9,7 +9,6 @@ contract SeniorVault {
 
 
     error SeniorVault__InvalidAddress();
-    error SeniorVault__PreviousGuardianDidntApproveYourCandidacy();
     error SeniorVault__NotProposed();
     error SeniorVault__AddressNotWhiteListed();
     error SeniorVault__NotEnoughMoney();
@@ -34,7 +33,7 @@ contract SeniorVault {
     mapping(address => uint256) private _balances; 
     mapping(address => bool ) private pendingRecipient;
     mapping(address => bool) private pendingToken;
-    bool guardianApprove;
+
 
 
     constructor() {
