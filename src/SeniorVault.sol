@@ -24,15 +24,15 @@ contract SeniorVault {
 
 
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-    address senior;
-    address guardian;
-    address pendingGuardian;
+    address public senior;
+    address public guardian;
+    address public pendingGuardian;
 
 
     mapping(address => bool ) public isWhiteListed;
     mapping(address => uint256) private _balances; 
-    mapping(address => bool ) private pendingRecipient;
-    mapping(address => bool) private pendingToken;
+    mapping(address => bool ) private _pendingRecipient;
+    mapping(address => bool) private _pendingToken;
 
 
 
@@ -88,25 +88,25 @@ contract SeniorVault {
 
     function proposesSafeAddresses(address safeAddress) public onlySenior {
         if(safeAddress == address(0)) revert SeniorVault__InvalidAddress();
-        pendingRecipient[safeAddress] = true;
+        _pendingRecipient[safeAddress] = true;
     }
 
 
     function approveSafeAddress(address safeAddress) external onlyGuardian {
-        if(!pendingRecipient[safeAddress]) revert SeniorVault__NotProposed();
+        if(!_pendingRecipient[safeAddress]) revert SeniorVault__NotProposed();
         isWhiteListed[safeAddress] = true;
-        pendingRecipient[safeAddress] = false;
+        _pendingRecipient[safeAddress] = false;
     }
 
     function proposeToken(address tokenAddress) public onlySenior {
         if(tokenAddress == address(0)) revert SeniorVault__InvalidAddress();
-        pendingToken[tokenAddress] = true;
+        _pendingToken[tokenAddress] = true;
     }
 
     function approveToken(address tokenAddress) external onlyGuardian{
-        if(!pendingToken[tokenAddress]) revert SeniorVault__NotProposed();
+        if(!_pendingToken[tokenAddress]) revert SeniorVault__NotProposed();
         isWhiteListed[tokenAddress] = true;
-        pendingToken[tokenAddress] = false;
+        _pendingToken[tokenAddress] = false;
     }
 
 
@@ -142,6 +142,9 @@ contract SeniorVault {
         if(msg.sender != guardian) revert SeniorVault__NotGuardian();
     }
 
-//todo tests for this contract
+
+    function getUserTokenBalance(address tokenAddress) external view returns(uint256){
+        return _balances[tokenAddress];
+    }
 }
 
