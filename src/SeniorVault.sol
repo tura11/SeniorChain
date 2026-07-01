@@ -33,6 +33,7 @@ contract SeniorVault {
     mapping(address => bool ) public isWhiteListed;
     mapping(address => uint256) private _balances; 
     mapping(address => bool ) private pendingRecipient;
+    mapping(address => bool) private pendingToken;
     bool guardianApprove;
 
 
@@ -96,6 +97,17 @@ contract SeniorVault {
         if(!pendingRecipient[safeAddress]) revert SeniorVault__NotProposed();
         isWhiteListed[safeAddress] = true;
         pendingRecipient[safeAddress] = false;
+    }
+
+    function proposeToken(address tokenAddress) public onlySenior {
+        if(tokenAddress == address(0)) revert SeniorVault__InvalidAddress();
+        pendingToken[tokenAddress] = true;
+    }
+
+    function approveToken(address tokenAddress) external onlyGuardian{
+        if(!pendingToken[tokenAddress]) revert SeniorVault__NotProposed();
+        isWhiteListed[tokenAddress] = true;
+        pendingToken[tokenAddress] = false;
     }
 
 
