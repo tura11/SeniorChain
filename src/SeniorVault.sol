@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.31;
+pragma solidity 0.8.31;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -20,6 +20,9 @@ contract SeniorVault {
 
     event DepositedEth(address indexed user, uint256 amount);
     event DepositedERC20(address indexed token, uint256 amount);
+    event GuardianChanged(address indexed newGuardian);
+    event AddressApproved(address indexed safeAddress);
+    event TokenAddressApproved(address indexed tokenAddress);
 
 
 
@@ -59,10 +62,11 @@ contract SeniorVault {
 
 
     function depositERC20(address tokenAddress, uint256 amount) external onlySenior {
-        require(isWhiteListed[tokenAddress], "Token not whitelisted");
-        IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amount);
+        if(!isWhiteListed[tokenAddress]) revert SeniorVault__AddressNotWhiteListed();
         _balances[tokenAddress] += amount;
         emit DepositedERC20(tokenAddress, amount);
+        IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amount);
+        
     }
 
     
@@ -83,6 +87,7 @@ contract SeniorVault {
     function approveNewGuardian() external onlyGuardian {
         guardian = pendingGuardian;
         pendingGuardian = address(0);
+        emit GuardianChanged(guardian);
     }
 
 
@@ -96,6 +101,7 @@ contract SeniorVault {
         if(!_pendingRecipient[safeAddress]) revert SeniorVault__NotProposed();
         isWhiteListed[safeAddress] = true;
         _pendingRecipient[safeAddress] = false;
+        emit AddressApproved(safeAddress);
     }
 
     function proposeToken(address tokenAddress) public onlySenior {
@@ -107,6 +113,7 @@ contract SeniorVault {
         if(!_pendingToken[tokenAddress]) revert SeniorVault__NotProposed();
         isWhiteListed[tokenAddress] = true;
         _pendingToken[tokenAddress] = false;
+        emit TokenAddressApproved(tokenAddress);
     }
 
 
