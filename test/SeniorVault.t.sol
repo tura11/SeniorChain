@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.31;
 
-
 import {SeniorVault} from "../src/SeniorVault.sol";
 import {Test} from "lib/forge-std/src/Test.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/ERC20Mock.sol";
 
-
 contract SeniorVaultTest is Test {
-
     event DepositedEth(address indexed user, uint256 amount);
 
     address public senior;
@@ -24,7 +21,7 @@ contract SeniorVaultTest is Test {
         token = new ERC20Mock();
         vault.proposeGuardian(guardian);
         vm.deal(senior, 10 ether);
-        token.mint(senior, 1000e6);// 1000 usdc
+        token.mint(senior, 1000e6); // 1000 usdc
         token.approve(address(vault), 1000e6);
     }
 
@@ -38,7 +35,6 @@ contract SeniorVaultTest is Test {
         vm.stopPrank();
 
         assertEq(vault.getUserTokenBalance(ETH_ADDRESS), 1 ether);
-
     }
 
     function testDepositRevertIfNotSenior() public {
@@ -49,7 +45,6 @@ contract SeniorVaultTest is Test {
         vm.stopPrank();
     }
 
-
     function testDepositEmitEvent() public {
         vm.startPrank(senior);
         vm.expectEmit(true, false, false, true);
@@ -57,7 +52,6 @@ contract SeniorVaultTest is Test {
         vault.deposit{value: 1 ether}();
         vm.stopPrank();
     }
-
 
     /////////////////////////////////////////
     /////////// DEPOSIT TOKEN  TESTS ////////
@@ -72,7 +66,4 @@ contract SeniorVaultTest is Test {
         vault.depositERC20(address(token), 500e6);
         assertEq(vault.getUserTokenBalance(address(token)), 500e6);
     }
-
-
-
 }

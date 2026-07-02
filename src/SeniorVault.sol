@@ -7,7 +7,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract SeniorVault {
     using SafeERC20 for IERC20;
 
-
     error SeniorVault__InvalidAddress();
     error SeniorVault__NotProposed();
     error SeniorVault__AddressNotWhiteListed();
@@ -15,8 +14,6 @@ contract SeniorVault {
     error SeniorVault__TransferFailed();
     error SeniorVault__NotSenior();
     error SeniorVault__NotGuardian();
-    
-
 
     event DepositedEth(address indexed user, uint256 amount);
     event DepositedERC20(address indexed token, uint256 amount);
@@ -25,25 +22,19 @@ contract SeniorVault {
     event TokenAddressApproved(address indexed tokenAddress);
     event WithdrawedERC20(address indexed token, uint256 amount);
 
-
-
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public senior;
     address public guardian;
     address public pendingGuardian;
 
-
-    mapping(address => bool ) public isWhiteListed;
-    mapping(address => uint256) private _balances; 
-    mapping(address => bool ) private _pendingRecipient;
+    mapping(address => bool) public isWhiteListed;
+    mapping(address => uint256) private _balances;
+    mapping(address => bool) private _pendingRecipient;
     mapping(address => bool) private _pendingToken;
-
-
 
     constructor() {
         senior = msg.sender;
     }
-
 
     modifier onlySenior() {
         _onlySenior();
@@ -51,39 +42,32 @@ contract SeniorVault {
     }
 
     modifier onlyGuardian() {
-         _onlyGuardian();
+        _onlyGuardian();
         _;
     }
-    
 
     function deposit() external payable onlySenior {
-        _balances[ETH_ADDRESS] +=  msg.value;
+        _balances[ETH_ADDRESS] += msg.value;
         emit DepositedEth(msg.sender, msg.value);
     }
 
-
     function depositERC20(address tokenAddress, uint256 amount) external onlySenior {
-        if(!isWhiteListed[tokenAddress]) revert SeniorVault__AddressNotWhiteListed();
+        if (!isWhiteListed[tokenAddress]) revert SeniorVault__AddressNotWhiteListed();
         _balances[tokenAddress] += amount;
-        emit DepositedERC20(tokenAddress, amount);
+
         IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amount);
-        
+
+        emit DepositedERC20(tokenAddress, amount);
     }
 
-    
-
     function proposeGuardian(address _guardian) public onlySenior {
-        if(_guardian == address(0)) revert SeniorVault__InvalidAddress();
-        if(guardian == address(0)) {
+        if (_guardian == address(0)) revert SeniorVault__InvalidAddress();
+        if (guardian == address(0)) {
             guardian = _guardian;
-        }else{
+        } else {
             pendingGuardian = _guardian;
         }
     }
-
-
-
-
 
     function approveNewGuardian() external onlyGuardian {
         guardian = pendingGuardian;
@@ -91,68 +75,59 @@ contract SeniorVault {
         emit GuardianChanged(guardian);
     }
 
-
     function proposesSafeAddresses(address safeAddress) public onlySenior {
-        if(safeAddress == address(0)) revert SeniorVault__InvalidAddress();
+        if (safeAddress == address(0)) revert SeniorVault__InvalidAddress();
         _pendingRecipient[safeAddress] = true;
     }
 
-
     function approveSafeAddress(address safeAddress) external onlyGuardian {
-        if(!_pendingRecipient[safeAddress]) revert SeniorVault__NotProposed();
+        if (!_pendingRecipient[safeAddress]) revert SeniorVault__NotProposed();
         isWhiteListed[safeAddress] = true;
         _pendingRecipient[safeAddress] = false;
         emit AddressApproved(safeAddress);
     }
 
     function proposeToken(address tokenAddress) public onlySenior {
-        if(tokenAddress == address(0)) revert SeniorVault__InvalidAddress();
+        if (tokenAddress == address(0)) revert SeniorVault__InvalidAddress();
         _pendingToken[tokenAddress] = true;
     }
 
-    function approveToken(address tokenAddress) external onlyGuardian{
-        if(!_pendingToken[tokenAddress]) revert SeniorVault__NotProposed();
+    function approveToken(address tokenAddress) external onlyGuardian {
+        if (!_pendingToken[tokenAddress]) revert SeniorVault__NotProposed();
         isWhiteListed[tokenAddress] = true;
         _pendingToken[tokenAddress] = false;
         emit TokenAddressApproved(tokenAddress);
     }
 
-
     function withdrawETH(address recipient, uint256 amount) external onlySenior {
-        if(!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
-        if(amount > _balances[ETH_ADDRESS]) revert SeniorVault__NotEnoughMoney();
+        if (!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
+        if (amount > _balances[ETH_ADDRESS]) revert SeniorVault__NotEnoughMoney();
 
         _balances[ETH_ADDRESS] -= amount;
 
-
-        (bool success, ) = recipient.call{value: amount}("");
-        if(!success) revert SeniorVault__TransferFailed();
-        
+        (bool success,) = recipient.call{value: amount}("");
+        if (!success) revert SeniorVault__TransferFailed();
     }
-
 
     function withdrawERC20(address recipient, uint256 amount, address tokenAddress) external onlySenior {
-        if(!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
-        if(amount > _balances[tokenAddress]) revert SeniorVault__NotEnoughMoney();
+        if (!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
+        if (amount > _balances[tokenAddress]) revert SeniorVault__NotEnoughMoney();
 
         _balances[tokenAddress] -= amount;
-        emit WithdrawedERC20(tokenAddress, amount);
         IERC20(tokenAddress).safeTransfer(recipient, amount);
 
-
+        emit WithdrawedERC20(tokenAddress, amount);
     }
 
-
-    function _onlySenior() internal view{
-        if(msg.sender != senior) revert SeniorVault__NotSenior();
+    function _onlySenior() internal view {
+        if (msg.sender != senior) revert SeniorVault__NotSenior();
     }
 
-    function _onlyGuardian() internal view{
-        if(msg.sender != guardian) revert SeniorVault__NotGuardian();
+    function _onlyGuardian() internal view {
+        if (msg.sender != guardian) revert SeniorVault__NotGuardian();
     }
 
-
-    function getUserTokenBalance(address tokenAddress) external view returns(uint256){
+    function getUserTokenBalance(address tokenAddress) external view returns (uint256) {
         return _balances[tokenAddress];
     }
 }
