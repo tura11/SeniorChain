@@ -23,6 +23,7 @@ contract SeniorVault {
     event GuardianChanged(address indexed newGuardian);
     event AddressApproved(address indexed safeAddress);
     event TokenAddressApproved(address indexed tokenAddress);
+    event WithdrawedERC20(address indexed token, uint256 amount);
 
 
 
@@ -135,6 +136,7 @@ contract SeniorVault {
         if(amount > _balances[tokenAddress]) revert SeniorVault__NotEnoughMoney();
 
         _balances[tokenAddress] -= amount;
+        emit WithdrawedERC20(tokenAddress, amount);
         IERC20(tokenAddress).safeTransfer(recipient, amount);
 
 
