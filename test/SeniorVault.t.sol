@@ -22,9 +22,15 @@ contract SeniorVaultTest is Test {
         senior = address(this);
         guardian = makeAddr("guardian");
         token = new ERC20Mock();
+        vault.proposeGuardian(guardian);
         vm.deal(senior, 10 ether);
+        token.mint(senior, 1000e6);// 1000 usdc
+        token.approve(address(vault), 1000e6);
     }
 
+    /////////////////////////////////////////
+    /////////// DEPOSIT TESTS ///////////////
+    /////////////////////////////////////////
 
     function testDepositEth() public {
         vm.startPrank(senior);
@@ -52,6 +58,20 @@ contract SeniorVaultTest is Test {
         vm.stopPrank();
     }
 
+
+    /////////////////////////////////////////
+    /////////// DEPOSIT TOKEN  TESTS ////////
+    /////////////////////////////////////////
+
+    function testDepositToken() public {
+        vm.prank(senior);
+        vault.proposeToken(address(token));
+        vm.prank(guardian);
+        vault.approveToken(address(token));
+        vm.prank(senior);
+        vault.depositERC20(address(token), 500e6);
+        assertEq(vault.getUserTokenBalance(address(token)), 500e6);
+    }
 
 
 
