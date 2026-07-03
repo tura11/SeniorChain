@@ -66,4 +66,11 @@ contract SeniorVaultTest is Test {
         vault.depositERC20(address(token), 500e6);
         assertEq(vault.getUserTokenBalance(address(token)), 500e6);
     }
+
+
+    function testDepositTokenWhiteListedRevert() public {
+        vm.prank(senior);
+        vm.expectRevert(SeniorVault.SeniorVault__AddressNotWhiteListed.selector);
+        vault.depositERC20(address(token), 500e6);
+    }
 }
