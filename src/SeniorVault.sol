@@ -130,5 +130,7 @@ contract SeniorVault {
     function getUserTokenBalance(address tokenAddress) external view returns (uint256) {
         return _balances[tokenAddress];
     }
+
+//todo getters and coverage
 }
 
