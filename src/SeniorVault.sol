@@ -131,6 +131,10 @@ contract SeniorVault {
         return _balances[tokenAddress];
     }
 
+    function isAddressWhiteListed(address safeAddress) external view returns (bool){
+        return isWhiteListed[safeAddress];
+    }
+
 //todo getters and coverage
 }
 
