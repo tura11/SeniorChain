@@ -69,7 +69,6 @@ contract SeniorVaultTest is Test {
         assertEq(vault.getUserTokenBalance(address(token)), 500e6);
     }
 
-
     function testDepositTokenWhiteListedRevert() public {
         vm.prank(senior);
         vm.expectRevert(SeniorVault.SeniorVault__AddressNotWhiteListed.selector);
@@ -86,7 +85,6 @@ contract SeniorVaultTest is Test {
         vault.depositERC20(address(token), 500e6);
     }
 
-
     function testProposeAndApproveGuardian() public {
         address guardian2 = makeAddr("guardian2");
         vm.prank(senior);
@@ -97,7 +95,7 @@ contract SeniorVaultTest is Test {
     }
 
     function testProposeSafeAddress() public {
-        address safeAddress1  = makeAddr("safeAddress1");
+        address safeAddress1 = makeAddr("safeAddress1");
         vm.prank(senior);
         vault.proposesSafeAddresses(safeAddress1);
         vm.prank(guardian);
@@ -105,8 +103,7 @@ contract SeniorVaultTest is Test {
         assertEq(vault.isAddressWhiteListed(safeAddress1), true);
     }
 
-
-     /////////////////////////////////////////
+    /////////////////////////////////////////
     /////////// WITHDRAW ETH TESTS //////////
     /////////////////////////////////////////
 
@@ -298,8 +295,6 @@ contract SeniorVaultTest is Test {
         vault.withdrawERC20(safeAddress1, 200e6, address(token));
     }
 }
-
-
 
 contract RejectEther {
     receive() external payable {

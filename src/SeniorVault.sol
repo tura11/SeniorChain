@@ -23,7 +23,7 @@ contract SeniorVault {
     event WithdrawedERC20(address indexed token, uint256 amount);
 
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-    address public senior;
+    address public senior; // should be immutable
     address public guardian;
     address public pendingGuardian;
 
@@ -63,6 +63,7 @@ contract SeniorVault {
     function proposeGuardian(address _guardian) public onlySenior {
         if (_guardian == address(0)) revert SeniorVault__InvalidAddress();
         if (guardian == address(0)) {
+            // audit-medium what if senior enter accidently wrong address??
             guardian = _guardian;
         } else {
             pendingGuardian = _guardian;
@@ -131,10 +132,10 @@ contract SeniorVault {
         return _balances[tokenAddress];
     }
 
-    function isAddressWhiteListed(address safeAddress) external view returns (bool){
+    function isAddressWhiteListed(address safeAddress) external view returns (bool) {
         return isWhiteListed[safeAddress];
     }
 
-//todo getters and coverage
+    //todo getters and coverage
 }
 
