@@ -66,7 +66,7 @@ contract SeniorVault {
             // audit-medium what if senior enter accidently wrong address??
             guardian = _guardian;
         } else {
-            pendingGuardian = _guardian;
+            pendingGuardian = _guardian; //q does it matter if senior could overwrite propose before approval
         }
     }
 
@@ -86,6 +86,11 @@ contract SeniorVault {
         isWhiteListed[safeAddress] = true;
         _pendingRecipient[safeAddress] = false;
         emit AddressApproved(safeAddress);
+    }
+
+    function removeSafeAddress(address safeAddress) external onlyGuardian {
+        if (!isWhiteListed[safeAddress]) revert SeniorVault__AddressNotWhiteListed();
+        isWhiteListed[safeAddress] = false;
     }
 
     function proposeToken(address tokenAddress) public onlySenior {
