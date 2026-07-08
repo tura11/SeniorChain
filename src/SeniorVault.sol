@@ -141,6 +141,6 @@ contract SeniorVault {
         return isWhiteListed[safeAddress];
     }
 
-    //todo getters and coverage
+    //todo senior factory vault
 }
 
