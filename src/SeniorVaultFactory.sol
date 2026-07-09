@@ -5,8 +5,10 @@ import {SeniorVault} from "./SeniorVault.sol";
 
 contract SeniorVaultFactory {
     error InvalidAddress();
+    error VaultAlredyExist();
 
-
+    event VaultCreated(address indexed user, address indexed vault);
+    
 
     address senior;
 
@@ -14,10 +16,6 @@ contract SeniorVaultFactory {
 
     mapping(address senior => address vault) public seniorToVault;
 
-    constructor(address _senior) public {
-        if(_senior == address(0)) revert InvalidAddress();
-        senior = _senior;
-    }
 
 
     function createVault() external returns(address){
