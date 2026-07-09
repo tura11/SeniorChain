@@ -32,8 +32,9 @@ contract SeniorVault {
     mapping(address => bool) private _pendingRecipient;
     mapping(address => bool) private _pendingToken;
 
-    constructor() {
-        senior = msg.sender;
+    constructor(address _senior) public {
+        if(_senior == address(0)) revert SeniorVault__InvalidAddress();
+        senior = _senior;
     }
 
     modifier onlySenior() {
