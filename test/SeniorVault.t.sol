@@ -17,8 +17,9 @@ contract SeniorVaultTest is Test {
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     function setUp() public {
-        vault = new SeniorVault(senior);
         senior = address(this);
+        vault = new SeniorVault(senior);
+        
         guardian = makeAddr("guardian");
         token = new ERC20Mock();
         vault.proposeGuardian(guardian);
