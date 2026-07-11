@@ -33,4 +33,6 @@ contract SeniorVaultFactory is Ownable, Pausable {
         _unpause();
     }
 
+    //todo getters and more complex logic
+
 }
