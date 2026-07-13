@@ -26,11 +26,34 @@ contract SeniorVault {
     address public senior; // should be immutable
     address public guardian;
     address public pendingGuardian;
+    uint256 public nextWithdrawalId;
+    WithdrawalLimits public withdrawalLimits;
 
     mapping(address => bool) public isWhiteListed;
     mapping(address => uint256) private _balances;
     mapping(address => bool) private _pendingRecipient;
     mapping(address => bool) private _pendingToken;
+    mapping(uint256 => PendingWithdrawal) public pendingWithdrawals;
+
+
+    struct WihtdrawalLimits {
+        uint256 periodLimit;
+        uint256 singleTxThreshold;
+        uint256 currentPeriodSpent;
+        uint256 currentPeriodStart;
+        uint256 periodDuration;
+    }
+
+
+    struct PendingWithdrawal {
+        address token;
+        uint256 amount;
+        address recipient;
+        uint256 unlockTime;
+        bool executed;
+        bool cancelled;
+    }
+
 
     constructor(address _senior) public {
         if(_senior == address(0)) revert SeniorVault__InvalidAddress();
@@ -104,6 +127,20 @@ contract SeniorVault {
         isWhiteListed[tokenAddress] = true;
         _pendingToken[tokenAddress] = false;
         emit TokenAddressApproved(tokenAddress);
+    }
+
+
+    function setWithdrawalLimits(uint256 _periodLimit, uint256 _singleTxThreshold, uint256 _perdioDuration) external {
+        WithdrawalLimits memory withdrawalLimits = ({
+            periodLimit: _periodLimit,
+            singleTxThreshold: _singleTxThreshold,
+            currentPeriodSpent: 0,
+            currentPeriodStart: block.timestamp,
+            periodDuration: _perdioDuration
+        })
+
+        emit WithdrawalLimitsChanged(withdrawalLimits);
+        
     }
 
     function withdrawETH(address recipient, uint256 amount) external onlySenior {
