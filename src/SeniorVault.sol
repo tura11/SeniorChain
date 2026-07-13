@@ -14,6 +14,9 @@ contract SeniorVault {
     error SeniorVault__TransferFailed();
     error SeniorVault__NotSenior();
     error SeniorVault__NotGuardian();
+    error SeniorVault__InvalidPeriod();
+    error SeniorVault__InvalidSingleTxThreshold();
+    error SeniorVault__InvalidPeriodDuration();
 
     event DepositedEth(address indexed user, uint256 amount);
     event DepositedERC20(address indexed token, uint256 amount);
@@ -21,6 +24,7 @@ contract SeniorVault {
     event AddressApproved(address indexed safeAddress);
     event TokenAddressApproved(address indexed tokenAddress);
     event WithdrawedERC20(address indexed token, uint256 amount);
+    event WithdrawalLimitsChanged(uint256 periodLimit, uint256 singleTxThreshold, uint256 periodDuration);
 
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public senior; // should be immutable
@@ -36,7 +40,7 @@ contract SeniorVault {
     mapping(uint256 => PendingWithdrawal) public pendingWithdrawals;
 
 
-    struct WihtdrawalLimits {
+    struct WithdrawalLimits {
         uint256 periodLimit;
         uint256 singleTxThreshold;
         uint256 currentPeriodSpent;
@@ -130,16 +134,18 @@ contract SeniorVault {
     }
 
 
-    function setWithdrawalLimits(uint256 _periodLimit, uint256 _singleTxThreshold, uint256 _perdioDuration) external {
-        WithdrawalLimits memory withdrawalLimits = ({
+    function setWithdrawalLimits(uint256 _periodLimit, uint256 _singleTxThreshold, uint256 _perdioDuration) external onlyGuardian {
+        if(_periodLimit == 0) revert SeniorVault__InvalidPeriod();
+        if(_singleTxThreshold == 0) revert SeniorVault__InvalidSingleTxThreshold();
+        if(_perdioDuration == 0) revert SeniorVault__InvalidPeriodDuration();
+        withdrawalLimits = WithdrawalLimits({
             periodLimit: _periodLimit,
             singleTxThreshold: _singleTxThreshold,
             currentPeriodSpent: 0,
             currentPeriodStart: block.timestamp,
             periodDuration: _perdioDuration
-        })
-
-        emit WithdrawalLimitsChanged(withdrawalLimits);
+        });
+        emit WithdrawalLimitsChanged(_periodLimit, _singleTxThreshold, _perdioDuration);
         
     }
 
