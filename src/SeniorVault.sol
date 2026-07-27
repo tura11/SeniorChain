@@ -17,6 +17,7 @@ contract SeniorVault {
     error SeniorVault__InvalidPeriod();
     error SeniorVault__InvalidSingleTxThreshold();
     error SeniorVault__InvalidPeriodDuration();
+    error SeniorVault__PeriodLimitExceed();
 
     event DepositedEth(address indexed user, uint256 amount);
     event DepositedERC20(address indexed token, uint256 amount);
@@ -41,11 +42,11 @@ contract SeniorVault {
 
 
     struct WithdrawalLimits {
-        uint256 periodLimit;
-        uint256 singleTxThreshold;
-        uint256 currentPeriodSpent;
-        uint256 currentPeriodStart;
-        uint256 periodDuration;
+        uint256 periodLimit;  // maximum amount that can be withdrawn in a given period
+        uint256 singleTxThreshold;  // maximum amount that can be withdrawn in a single transaction 
+        uint256 currentPeriodSpent; // amount spent in the current period
+        uint256 currentPeriodStart; // timestamp of the start of the current period
+        uint256 periodDuration; // duration of the period in seconds
     }
 
 
@@ -175,6 +176,24 @@ contract SeniorVault {
 
     function _onlyGuardian() internal view {
         if (msg.sender != guardian) revert SeniorVault__NotGuardian();
+    }
+
+    function _requiresTimeLock(uint256 amount) internal  returns (bool) {
+        if (block.timestamp >= withdrawalLimits.currentPeriodStart + withdrawalLimits.periodDuration)  {
+            withdrawalLimits.currentPeriodSpent = 0;
+            withdrawalLimits.currentPeriodStart = block.timestamp;
+        }
+
+        if(amount > withdrawalLimits.singleTxThreshold) {
+            return true;
+        }
+
+        if(withdrawalLimits.currentPeriodSpent + amount > withdrawalLimits.periodLimit){
+            return true;
+        }
+        withdrawalLimits.currentPeriodSpent += amount;
+        return false;
+
     }
 
     function getUserTokenBalance(address tokenAddress) external view returns (uint256) {
