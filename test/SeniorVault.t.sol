@@ -302,3 +302,61 @@ contract RejectEther {
         revert();
     }
 }
+
+contract SeniorVaultHarness is SeniorVault {
+    constructor(address _senior) SeniorVault(_senior) {}
+
+    function exposed_requiresTimeLock(uint256 amount) external returns (bool) {
+        return _requiresTimeLock(amount);
+    }
+}
+
+contract RequiresTimeLockTest is Test {
+    SeniorVaultHarness public vault;
+    address public senior;
+    address public guardian;
+
+    function setUp() public {
+        senior = address(this);
+        vault = new SeniorVaultHarness(senior);
+
+        guardian = makeAddr("guardian");
+        vault.proposeGuardian(guardian); 
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(1000 ether, 500 ether, 1 days); 
+      
+    }
+
+    function testUnderBothLimitsReturnsFalse() public {
+        assertFalse(vault.exposed_requiresTimeLock(100 ether));
+    }
+
+    function testExceedsSingleTxReturnsTrue() public {
+        assertTrue(vault.exposed_requiresTimeLock(600 ether));
+    }
+
+    function testPeriodSpentAccumulatesThenExceeds() public {
+        assertFalse(vault.exposed_requiresTimeLock(400 ether)); // spent = 400
+        assertFalse(vault.exposed_requiresTimeLock(400 ether)); // 400+400=800, OK
+        assertTrue(vault.exposed_requiresTimeLock(300 ether));  // 800+300=1100 > 1000
+    }
+
+    function testWindowResetsAfterDuration() public {
+        vault.exposed_requiresTimeLock(400 ether); // spent = 400
+        vm.warp(block.timestamp + 1 days + 1);
+        assertFalse(vault.exposed_requiresTimeLock(400 ether)); //  0+400 < 1000
+    }
+
+    function testExactlyAtBoundaryResets() public {
+        (, , , uint256 startBefore,) = vault.withdrawalLimits();
+        vm.warp(startBefore + 1 days); 
+
+        vault.exposed_requiresTimeLock(100 ether);
+
+        (, , uint256 spentAfter, uint256 startAfter,) = vault.withdrawalLimits();
+        assertEq(spentAfter, 100 ether); 
+        assertEq(startAfter, startBefore + 1 days);
+    }
+}
+

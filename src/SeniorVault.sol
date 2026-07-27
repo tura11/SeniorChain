@@ -60,7 +60,7 @@ contract SeniorVault {
     }
 
 
-    constructor(address _senior) public {
+    constructor(address _senior) {
         if(_senior == address(0)) revert SeniorVault__InvalidAddress();
         senior = _senior;
     }
