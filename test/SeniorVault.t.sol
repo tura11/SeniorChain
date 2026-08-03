@@ -107,7 +107,7 @@ contract SeniorVaultTest is Test {
     /////////// WITHDRAW ETH TESTS //////////
     /////////////////////////////////////////
 
-    function testWithdrawEth() public {
+ function testWithdrawEthWithTimeLock() public {
         address safeAddress1 = makeAddr("safeAddress1");
 
         vm.prank(senior);
@@ -118,26 +118,55 @@ contract SeniorVaultTest is Test {
         vm.prank(senior);
         vault.deposit{value: 5 ether}();
 
-        uint256 recipientBalanceBefore = safeAddress1.balance;
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(5 ether, 2 ether, 86400);
 
         vm.prank(senior);
-        vault.withdrawETH(safeAddress1, 2 ether);
+        vault.withdrawETH(safeAddress1, 3 ether);
 
-        assertEq(vault.getUserTokenBalance(ETH_ADDRESS), 3 ether);
-        assertEq(safeAddress1.balance, recipientBalanceBefore + 2 ether);
+        assertEq(vault.getUserTokenBalance(ETH_ADDRESS), 2 ether);
+
+        (
+            address token,
+            uint256 amount,
+            address recipient,
+            uint256 unlockTime,
+            bool executed,
+            bool cancelled
+        ) = vault.pendingWithdrawals(0);
+
+        assertEq(token, ETH_ADDRESS);
+        assertEq(amount, 3 ether);
+        assertEq(recipient, safeAddress1);
+        assertEq(unlockTime, block.timestamp + 86400);        
+        assertEq(executed, false);
+        assertEq(cancelled, false);
+        assertEq(vault.getUserTokenBalance(ETH_ADDRESS), 2 ether);
+        assertEq(vault.getUserTokenBalance(safeAddress1), 0 ether);
     }
 
-    function testWithdrawEthRevertIfNotWhiteListed() public {
-        address notWhiteListed = makeAddr("notWhiteListed");
+
+    function withdrawETHWithoutTimeLock() public {
+        address safeAddress1 = makeAddr("safeAddress1");
+
+        vm.prank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vm.prank(guardian);
+        vault.approveSafeAddress(safeAddress1);
 
         vm.prank(senior);
         vault.deposit{value: 5 ether}();
 
-        vm.prank(senior);
-        vm.expectRevert(SeniorVault.SeniorVault__AddressNotWhiteListed.selector);
-        vault.withdrawETH(notWhiteListed, 1 ether);
-    }
 
+        vm.prank(senior);
+        vault.withdrawETH(safeAddress1, 3 ether);
+
+
+        assertEq(vault.getUserTokenBalance(ETH_ADDRESS), 2 ether);
+
+        assertEq(vault.getUserTokenBalance(safeAddress1), 3 ether);
+        
+    }
     function testWithdrawEthRevertIfNotEnoughMoney() public {
         address safeAddress1 = makeAddr("safeAddress1");
 
