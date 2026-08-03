@@ -18,7 +18,9 @@ contract SeniorVault {
     error SeniorVault__InvalidSingleTxThreshold();
     error SeniorVault__InvalidPeriodDuration();
     error SeniorVault__PeriodLimitExceed();
+    error SeniorVault__TokenAddressNotWhiteListed();
 
+    
     event DepositedEth(address indexed user, uint256 amount);
     event DepositedERC20(address indexed token, uint256 amount);
     event GuardianChanged(address indexed newGuardian);
@@ -27,6 +29,7 @@ contract SeniorVault {
     event WithdrawedERC20(address indexed token, uint256 amount);
     event WithdrawalLimitsChanged(uint256 periodLimit, uint256 singleTxThreshold, uint256 periodDuration);
     event WithdrawalQueued(uint256 indexed nextWithdrawalId, address indexed recipient,uint256 amount, uint256 unlockTime);
+    event WithdrawedETH(address indexed recipient, uint256 amount);
 
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     uint256 public constant TIMELOCK_DURATION = 24 hours;
@@ -174,6 +177,7 @@ contract SeniorVault {
 
             (bool success,) = recipient.call{value: amount}("");
             if (!success) revert SeniorVault__TransferFailed();
+            emit WithdrawedETH(recipient, amount);
         }
 
        
@@ -181,12 +185,28 @@ contract SeniorVault {
 
     function withdrawERC20(address recipient, uint256 amount, address tokenAddress) external onlySenior {
         if (!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
+        if(!isWhiteListed[tokenAddress]) revert SeniorVault__TokenAddressNotWhiteListed();
         if (amount > _balances[tokenAddress]) revert SeniorVault__NotEnoughMoney();
 
         _balances[tokenAddress] -= amount;
-        IERC20(tokenAddress).safeTransfer(recipient, amount);
+        if(_requiresTimeLock(amount)){
+            uint256 unlockTime = block.timestamp + TIMELOCK_DURATION;
+            pendingWithdrawals[nextWithdrawalId] = PendingWithdrawal({
+                token: tokenAddress,
+                amount: amount,
+                recipient: recipient,
+                unlockTime: unlockTime,
+                executed: false,
+                cancelled: false
+            });
+            emit WithdrawalQueued(nextWithdrawalId, recipient, amount, unlockTime);
+            nextWithdrawalId++;
+        }else{
+            IERC20(tokenAddress).safeTransfer(recipient, amount);
+            emit WithdrawedERC20(tokenAddress, amount);
+        }
 
-        emit WithdrawedERC20(tokenAddress, amount);
+        
     }
 
     function _onlySenior() internal view {
@@ -222,6 +242,7 @@ contract SeniorVault {
     function isAddressWhiteListed(address safeAddress) external view returns (bool) {
         return isWhiteListed[safeAddress];
     }
+    
 
     //todo senior factory vault complex aaa
 }
