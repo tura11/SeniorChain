@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.31;
-
+pragma solidity 0.8.28;
 import {SeniorVault} from "../src/SeniorVault.sol";
 import {Test} from "lib/forge-std/src/Test.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/ERC20Mock.sol";

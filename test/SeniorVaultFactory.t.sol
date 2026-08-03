@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.31;
-
+pragma solidity 0.8.28;
 import {Test, console} from "forge-std/Test.sol";
 import {SeniorVaultFactory} from "../src/SeniorVaultFactory.sol";
 import {SeniorVault} from "../src/SeniorVault.sol";
