@@ -19,6 +19,7 @@ contract SeniorVault {
     error SeniorVault__InvalidPeriodDuration();
     error SeniorVault__PeriodLimitExceed();
     error SeniorVault__TokenAddressNotWhiteListed();
+    error SeniorVault__InvalidAmount();
 
     
     event DepositedEth(address indexed user, uint256 amount);
@@ -156,6 +157,7 @@ contract SeniorVault {
     }
 
     function withdrawETH(address recipient, uint256 amount) external onlySenior {
+        if(amount == 0) revert SeniorVault__InvalidAmount();
 
         if (!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
         if (amount > _balances[ETH_ADDRESS]) revert SeniorVault__NotEnoughMoney();
@@ -184,6 +186,7 @@ contract SeniorVault {
     }
 
     function withdrawERC20(address recipient, uint256 amount, address tokenAddress) external onlySenior {
+        if(amount == 0) revet SeniorVault__InvalidAmount();
         if (!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
         if(!isWhiteListed[tokenAddress]) revert SeniorVault__TokenAddressNotWhiteListed();
         if (amount > _balances[tokenAddress]) revert SeniorVault__NotEnoughMoney();
@@ -207,6 +210,16 @@ contract SeniorVault {
         }
 
         
+    }
+
+    function executeWithdrawal(uint256 withdrawalId) external {
+        if(pendingWithdrawals[withdrawalId].recipient == address(0)) revert SeniorVault__WithdrawalNotFound();
+        if(msg.sender != senior && msg.sender != guardian) revert SeniorVault__NoAccess();
+        if(pendingWithdrawals[withdrawalId].executed == true) revert SeniorVault__WithdrawalAlreadyExecuted();
+        if(pendingWithdrawals[withdrawalId].cancelled == true) revert SeniorVault__WithdrawalAlreadyCancelled();
+        if(block.timestamp < pendingWithdrawals[withdrawalId].unlockTime) revert SeniorVault__TimePassed();
+
+
     }
 
     function _onlySenior() internal view {
