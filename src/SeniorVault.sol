@@ -20,6 +20,12 @@ contract SeniorVault {
     error SeniorVault__PeriodLimitExceed();
     error SeniorVault__TokenAddressNotWhiteListed();
     error SeniorVault__InvalidAmount();
+    error SeniorVault__WithdrawalNotFound();
+    error SeniorVault__NoAccess();
+    error SeniorVault__WithdrawalAlreadyExecuted();
+    error SeniorVault__WithdrawalAlreadyCancelled();
+    error SeniorVault__TimePassed();
+
 
     
     event DepositedEth(address indexed user, uint256 amount);
