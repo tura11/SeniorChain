@@ -24,7 +24,7 @@ contract SeniorVault {
     error SeniorVault__NoAccess();
     error SeniorVault__WithdrawalAlreadyExecuted();
     error SeniorVault__WithdrawalAlreadyCancelled();
-    error SeniorVault__TimePassed();
+    error SeniorVault__TimeLockNotExpired();
 
 
     
@@ -37,6 +37,9 @@ contract SeniorVault {
     event WithdrawalLimitsChanged(uint256 periodLimit, uint256 singleTxThreshold, uint256 periodDuration);
     event WithdrawalQueued(uint256 indexed nextWithdrawalId, address indexed recipient,uint256 amount, uint256 unlockTime);
     event WithdrawedETH(address indexed recipient, uint256 amount);
+    event WithdrawalCancelledBySenior(uint256 indexed withdrawalId, address indexed recipient, uint256 amount);
+    event WithdrawalCancelledByGuardian(uint256 indexed withdrawalId, address indexed recipient, uint256 amount);
+
 
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     uint256 public constant TIMELOCK_DURATION = 24 hours;
@@ -192,7 +195,7 @@ contract SeniorVault {
     }
 
     function withdrawERC20(address recipient, uint256 amount, address tokenAddress) external onlySenior {
-        if(amount == 0) revet SeniorVault__InvalidAmount();
+        if(amount == 0) revert SeniorVault__InvalidAmount();
         if (!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
         if(!isWhiteListed[tokenAddress]) revert SeniorVault__TokenAddressNotWhiteListed();
         if (amount > _balances[tokenAddress]) revert SeniorVault__NotEnoughMoney();
@@ -219,12 +222,47 @@ contract SeniorVault {
     }
 
     function executeWithdrawal(uint256 withdrawalId) external {
+        PendingWithdrawal storage w = pendingWithdrawals[withdrawalId];
+
         if(pendingWithdrawals[withdrawalId].recipient == address(0)) revert SeniorVault__WithdrawalNotFound();
         if(msg.sender != senior && msg.sender != guardian) revert SeniorVault__NoAccess();
         if(pendingWithdrawals[withdrawalId].executed == true) revert SeniorVault__WithdrawalAlreadyExecuted();
         if(pendingWithdrawals[withdrawalId].cancelled == true) revert SeniorVault__WithdrawalAlreadyCancelled();
-        if(block.timestamp < pendingWithdrawals[withdrawalId].unlockTime) revert SeniorVault__TimePassed();
+        if(block.timestamp < pendingWithdrawals[withdrawalId].unlockTime) revert SeniorVault__TimeLockNotExpired();
 
+        address token = w.token;
+        uint256 amount = w.amount;
+        address recipient = w.recipient;
+
+        w.executed = true;
+
+
+        if (token == ETH_ADDRESS) {
+            (bool success, ) = recipient.call{value:amount}("");
+            if (!success) revert SeniorVault__TransferFailed();
+            emit WithdrawedETH(recipient, amount);
+
+        }else {
+            IERC20(token).safeTransfer(recipient, amount);
+            emit WithdrawedERC20(token, amount);
+        }
+    }
+
+    function cancelWithdrawal(uint256 withdrawalId) external {
+        PendingWithdrawal storage w = pendingWithdrawals[withdrawalId];
+        if(pendingWithdrawals[withdrawalId].recipient == address(0)) revert SeniorVault__WithdrawalNotFound();
+        if(msg.sender != senior && msg.sender != guardian) revert SeniorVault__NoAccess();
+        if(pendingWithdrawals[withdrawalId].executed == true) revert SeniorVault__WithdrawalAlreadyExecuted();
+        if(pendingWithdrawals[withdrawalId].cancelled == true) revert SeniorVault__WithdrawalAlreadyCancelled();
+
+        w.cancelled = true;
+        _balances[w.token] += w.amount;
+        if(msg.sender == senior){
+            emit WithdrawalCancelledBySenior(withdrawalId, w.recipient, w.amount);
+        }
+        else{
+            emit WithdrawalCancelledByGuardian(withdrawalId, w.recipient, w.amount);
+        }
 
     }
 
