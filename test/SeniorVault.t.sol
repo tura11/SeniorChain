@@ -429,6 +429,94 @@ contract SeniorVaultTest is Test {
         assertEq(cancelled, false);
     
     }
+
+    function testCancelWithdrwalERC20() public {
+        address safeAddress1 = makeAddr("safeAddress1");
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vault.proposeToken(address(token));
+        vm.stopPrank();
+
+        vm.startPrank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+        vault.approveToken(address(token));
+        vm.stopPrank();
+
+
+        vm.prank(senior);
+
+        vault.depositERC20(address(token), 1000e6);
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(500e6, 200e6, 86400);
+
+        vm.prank(senior);
+        vault.withdrawERC20(safeAddress1, 300e6, address(token));
+
+
+
+        vm.prank(senior);
+        vault.cancelWithdrawal(0);
+
+         (
+            address token,
+            uint256 amount,
+            address recipient,
+            uint256 unlockTime,
+            bool executed,
+            bool cancelled
+        ) = vault.pendingWithdrawals(0);
+
+        assertEq(token, address(token));
+        assertEq(amount, 300e6);
+        assertEq(recipient, safeAddress1);
+        assertEq(unlockTime, block.timestamp + 86400);
+        assertEq(executed, false);
+        assertEq(cancelled, true);
+    
+    }
+
+     function testCancelWithdrawalETH() public {
+        address safeAddress1 = makeAddr("safeAddress1");
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vm.stopPrank();
+
+        vm.startPrank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+        vm.stopPrank();
+
+
+        vm.prank(senior);
+
+        vault.deposit{value: 2 ether}();
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(2 ether, 1 ether, 86400);
+
+        vm.prank(senior);
+        vault.withdrawETH(safeAddress1, 2 ether);
+
+        vm.prank(guardian);
+        vault.cancelWithdrawal(0);
+
+         (
+            address token,
+            uint256 amount,
+            address recipient,
+            uint256 unlockTime,
+            bool executed,
+            bool cancelled
+        ) = vault.pendingWithdrawals(0);
+
+        assertEq(token, ETH_ADDRESS);
+        assertEq(amount, 2 ether);
+        assertEq(recipient, safeAddress1);
+        assertEq(unlockTime, block.timestamp + 86400);
+        assertEq(executed, false);
+        assertEq(cancelled, true);
+    
+    }
 }
 
 contract RejectEther {
