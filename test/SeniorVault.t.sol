@@ -210,6 +210,10 @@ contract SeniorVaultTest is Test {
         vm.prank(senior);
         vault.deposit{value: 1 ether}();
 
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(5 ether, 2 ether, 86400);
+
+
         vm.prank(senior);
         vm.expectRevert(SeniorVault.SeniorVault__TransferFailed.selector);
         vault.withdrawETH(address(rejecter), 1 ether);
@@ -236,6 +240,9 @@ contract SeniorVaultTest is Test {
 
         vm.prank(senior);
         vault.depositERC20(address(token), 500e6);
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(1000e6, 500e6, 86400);
 
         vm.prank(senior);
         vault.withdrawERC20(safeAddress1, 200e6, address(token));
@@ -318,10 +325,109 @@ contract SeniorVaultTest is Test {
         vm.prank(senior);
         vault.depositERC20(address(token), 500e6);
 
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(1000e6, 500e6, 86400);
+
+
         vm.prank(senior);
         vm.expectEmit(true, false, false, true);
         emit WithdrawedERC20(address(token), 200e6);
         vault.withdrawERC20(safeAddress1, 200e6, address(token));
+    }
+
+
+    function testExecuteWithdrawalERC20Success() public {
+        address safeAddress1 = makeAddr("safeAddress1");
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vault.proposeToken(address(token));
+        vm.stopPrank();
+
+        vm.startPrank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+        vault.approveToken(address(token));
+        vm.stopPrank();
+
+
+        vm.prank(senior);
+
+        vault.depositERC20(address(token), 1000e6);
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(500e6, 200e6, 86400);
+
+        vm.prank(senior);
+        vault.withdrawERC20(safeAddress1, 300e6, address(token));
+
+        uint256 queuedAt = block.timestamp;
+
+        vm.warp(block.timestamp + 24 hours);
+
+        vm.prank(senior);
+        vault.executeWithdrawal(0);
+
+         (
+            address token,
+            uint256 amount,
+            address recipient,
+            uint256 unlockTime,
+            bool executed,
+            bool cancelled
+        ) = vault.pendingWithdrawals(0);
+
+        assertEq(token, address(token));
+        assertEq(amount, 300e6);
+        assertEq(recipient, safeAddress1);
+        assertEq(unlockTime, queuedAt + 24 hours);
+        assertEq(executed, true);
+        assertEq(cancelled, false);
+    }
+
+    function testExecuteWIthdrwalETHSuccess() public {
+        address safeAddress1 = makeAddr("safeAddress1");
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vm.stopPrank();
+
+        vm.startPrank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+        vm.stopPrank();
+
+
+        vm.prank(senior);
+
+        vault.deposit{value: 2 ether}();
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(2 ether, 1 ether, 86400);
+
+        vm.prank(senior);
+        vault.withdrawETH(safeAddress1, 2 ether);
+
+        uint256 queuedAt = block.timestamp;
+
+        vm.warp(block.timestamp + 24 hours);
+
+        vm.prank(guardian);
+        vault.executeWithdrawal(0);
+
+         (
+            address token,
+            uint256 amount,
+            address recipient,
+            uint256 unlockTime,
+            bool executed,
+            bool cancelled
+        ) = vault.pendingWithdrawals(0);
+
+        assertEq(token, ETH_ADDRESS);
+        assertEq(amount, 2 ether);
+        assertEq(recipient, safeAddress1);
+        assertEq(unlockTime, queuedAt + 24 hours);
+        assertEq(executed, true);
+        assertEq(cancelled, false);
+    
     }
 }
 
@@ -334,7 +440,7 @@ contract RejectEther {
 contract SeniorVaultHarness is SeniorVault {
     constructor(address _senior) SeniorVault(_senior) {}
 
-    function exposed_requiresTimeLock(uint256 amount) external returns (bool) {
+    function exposedRequiresTimeLock(uint256 amount) external returns (bool) {
         return _requiresTimeLock(amount);
     }
 }
@@ -357,30 +463,30 @@ contract RequiresTimeLockTest is Test {
     }
 
     function testUnderBothLimitsReturnsFalse() public {
-        assertFalse(vault.exposed_requiresTimeLock(100 ether));
+        assertFalse(vault.exposedRequiresTimeLock(100 ether));
     }
 
     function testExceedsSingleTxReturnsTrue() public {
-        assertTrue(vault.exposed_requiresTimeLock(600 ether));
+        assertTrue(vault.exposedRequiresTimeLock(600 ether));
     }
 
     function testPeriodSpentAccumulatesThenExceeds() public {
-        assertFalse(vault.exposed_requiresTimeLock(400 ether)); // spent = 400
-        assertFalse(vault.exposed_requiresTimeLock(400 ether)); // 400+400=800, OK
-        assertTrue(vault.exposed_requiresTimeLock(300 ether));  // 800+300=1100 > 1000
+        assertFalse(vault.exposedRequiresTimeLock(400 ether)); // spent = 400
+        assertFalse(vault.exposedRequiresTimeLock(400 ether)); // 400+400=800, OK
+        assertTrue(vault.exposedRequiresTimeLock(300 ether));  // 800+300=1100 > 1000
     }
 
     function testWindowResetsAfterDuration() public {
-        vault.exposed_requiresTimeLock(400 ether); // spent = 400
+        vault.exposedRequiresTimeLock(400 ether); // spent = 400
         vm.warp(block.timestamp + 1 days + 1);
-        assertFalse(vault.exposed_requiresTimeLock(400 ether)); //  0+400 < 1000
+        assertFalse(vault.exposedRequiresTimeLock(400 ether)); //  0+400 < 1000
     }
 
     function testExactlyAtBoundaryResets() public {
         (, , , uint256 startBefore,) = vault.withdrawalLimits();
         vm.warp(startBefore + 1 days); 
 
-        vault.exposed_requiresTimeLock(100 ether);
+        vault.exposedRequiresTimeLock(100 ether);
 
         (, , uint256 spentAfter, uint256 startAfter,) = vault.withdrawalLimits();
         assertEq(spentAfter, 100 ether); 

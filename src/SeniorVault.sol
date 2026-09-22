@@ -224,10 +224,10 @@ contract SeniorVault {
     function executeWithdrawal(uint256 withdrawalId) external {
         PendingWithdrawal storage w = pendingWithdrawals[withdrawalId];
 
-        if(pendingWithdrawals[withdrawalId].recipient == address(0)) revert SeniorVault__WithdrawalNotFound();
+        if(w.recipient == address(0)) revert SeniorVault__WithdrawalNotFound();
         if(msg.sender != senior && msg.sender != guardian) revert SeniorVault__NoAccess();
-        if(pendingWithdrawals[withdrawalId].executed == true) revert SeniorVault__WithdrawalAlreadyExecuted();
-        if(pendingWithdrawals[withdrawalId].cancelled == true) revert SeniorVault__WithdrawalAlreadyCancelled();
+        if(w.executed == true) revert SeniorVault__WithdrawalAlreadyExecuted();
+        if(w.cancelled == true) revert SeniorVault__WithdrawalAlreadyCancelled();
         if(block.timestamp < pendingWithdrawals[withdrawalId].unlockTime) revert SeniorVault__TimeLockNotExpired();
 
         address token = w.token;
@@ -301,5 +301,4 @@ contract SeniorVault {
     }
     
 
-    //todo senior factory vault complex aaa
 }
