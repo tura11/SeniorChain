@@ -436,6 +436,140 @@ contract SeniorVaultTest is Test {
         vault.executeWithdrawal(999); // nikt nigdy nie zakolejkował ID 999
     }
 
+    function testExecuteWithdrawalRevertIfNoAccess() public {
+         address safeAddress1 = makeAddr("safeAddress1");
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vault.proposeToken(address(token));
+        vm.stopPrank();
+
+        vm.startPrank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+        vault.approveToken(address(token));
+        vm.stopPrank();
+
+
+        vm.prank(senior);
+
+        vault.depositERC20(address(token), 1000e6);
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(500e6, 200e6, 86400);
+
+        vm.prank(senior);
+        vault.withdrawERC20(safeAddress1, 300e6, address(token));
+
+        uint256 queuedAt = block.timestamp;
+
+        vm.warp(block.timestamp + 24 hours);
+
+
+        address actor = makeAddr("actor");
+        vm.prank(actor);
+        vm.expectRevert(SeniorVault.SeniorVault__NoAccess.selector);
+        vault.executeWithdrawal(0);
+    }
+
+    function testExecuteWithdrawalRevertIfWithdrwalAlreadyExecuted() public {
+        address safeAddress1 = makeAddr("safeAddress1");
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vm.stopPrank();
+
+        vm.startPrank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+        vm.stopPrank();
+
+
+        vm.prank(senior);
+
+        vault.deposit{value: 2 ether}();
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(2 ether, 1 ether, 86400);
+
+        vm.prank(senior);
+        vault.withdrawETH(safeAddress1, 2 ether);
+
+        uint256 queuedAt = block.timestamp;
+
+        vm.warp(block.timestamp + 24 hours);
+
+        vm.prank(guardian);
+        vault.executeWithdrawal(0);
+
+        vm.prank(senior);
+        vm.expectRevert(SeniorVault.SeniorVault__WithdrawalAlreadyExecuted.selector);
+        vault.executeWithdrawal(0);
+
+    }
+
+
+    function testExecuteWithdrawalRevertIfWithdrwalAlreadyCancelled() public {
+        address safeAddress1 = makeAddr("safeAddress1");
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vm.stopPrank();
+
+        vm.startPrank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+        vm.stopPrank();
+
+
+        vm.prank(senior);
+
+        vault.deposit{value: 2 ether}();
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(2 ether, 1 ether, 86400);
+
+        vm.prank(senior);
+        vault.withdrawETH(safeAddress1, 2 ether);
+
+        uint256 queuedAt = block.timestamp;
+
+        vm.warp(block.timestamp + 24 hours);
+
+        vm.prank(guardian);
+        vault.cancelWithdrawal(0);
+
+        vm.prank(senior);
+        vm.expectRevert(SeniorVault.SeniorVault__WithdrawalAlreadyCancelled.selector);
+        vault.cancelWithdrawal(0);
+
+    }
+
+
+    function testExecuteWithdrawalRevertIfTimlockExipired() public {
+        address safeAddress1 = makeAddr("safeAddress1");
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vm.stopPrank();
+
+        vm.startPrank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+        vm.stopPrank();
+
+
+        vm.prank(senior);
+
+        vault.deposit{value: 2 ether}();
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(2 ether, 1 ether, 86400);
+
+        vm.prank(senior);
+        vault.withdrawETH(safeAddress1, 2 ether);
+
+        uint256 queuedAt = block.timestamp;
+
+        vm.warp(block.timestamp + 23 hours);
+
+        vm.prank(guardian);
+        vm.expectRevert(SeniorVault.SeniorVault__TimeLockNotExpired.selector);
+        vault.executeWithdrawal(0);
+    }
+
  
 
     function testCancelWithdrwalERC20() public {
@@ -530,6 +664,82 @@ contract SeniorVaultTest is Test {
         vm.prank(senior);
         vm.expectRevert(SeniorVault.SeniorVault__WithdrawalNotFound.selector);
         vault.cancelWithdrawal(999);
+    }
+    function testCancelWithdrawalRevertIfNoAccess() public {
+        address safeAddress1 = makeAddr("safeAddress1");
+        address stranger = makeAddr("stranger");
+
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vm.stopPrank();
+        vm.prank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+
+        vm.prank(senior);
+        vault.deposit{value: 5 ether}();
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(5 ether, 2 ether, 86400); // wymusza timelock na 3 ether
+
+        vm.prank(senior);
+        vault.withdrawETH(safeAddress1, 3 ether); // withdrawalId 0
+
+        vm.prank(stranger);
+        vm.expectRevert(SeniorVault.SeniorVault__NoAccess.selector);
+        vault.cancelWithdrawal(0);
+    }
+
+    function testCancelWithdrawalRevertIfAlreadyExecuted() public {
+        address safeAddress1 = makeAddr("safeAddress1");
+
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vm.stopPrank();
+        vm.prank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+
+        vm.prank(senior);
+        vault.deposit{value: 5 ether}();
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(5 ether, 2 ether, 86400);
+
+        vm.prank(senior);
+        vault.withdrawETH(safeAddress1, 3 ether); // withdrawalId 0
+
+        vm.warp(block.timestamp + 24 hours);
+        vm.prank(senior);
+        vault.executeWithdrawal(0);
+
+        vm.prank(senior);
+        vm.expectRevert(SeniorVault.SeniorVault__WithdrawalAlreadyExecuted.selector);
+        vault.cancelWithdrawal(0);
+    }
+
+    function testCancelWithdrawalRevertIfAlreadyCancelled() public {
+        address safeAddress1 = makeAddr("safeAddress1");
+
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vm.stopPrank();
+        vm.prank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+
+        vm.prank(senior);
+        vault.deposit{value: 5 ether}();
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(5 ether, 2 ether, 86400);
+
+        vm.prank(senior);
+        vault.withdrawETH(safeAddress1, 3 ether); // withdrawalId 0
+
+        vm.prank(senior);
+        vault.cancelWithdrawal(0);
+
+        vm.prank(senior);
+        vm.expectRevert(SeniorVault.SeniorVault__WithdrawalAlreadyCancelled.selector);
+        vault.cancelWithdrawal(0);
     }
 }
 
