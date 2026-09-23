@@ -430,6 +430,14 @@ contract SeniorVaultTest is Test {
     
     }
 
+   function testExecuteWithdrawalRevertIfNotFound() public {
+        vm.prank(senior);
+        vm.expectRevert(SeniorVault.SeniorVault__WithdrawalNotFound.selector);
+        vault.executeWithdrawal(999); // nikt nigdy nie zakolejkował ID 999
+    }
+
+ 
+
     function testCancelWithdrwalERC20() public {
         address safeAddress1 = makeAddr("safeAddress1");
         vm.startPrank(senior);
@@ -516,6 +524,12 @@ contract SeniorVaultTest is Test {
         assertEq(executed, false);
         assertEq(cancelled, true);
     
+    }
+
+       function testCancelWithdrawalRevertIfNotFound() public {
+        vm.prank(senior);
+        vm.expectRevert(SeniorVault.SeniorVault__WithdrawalNotFound.selector);
+        vault.cancelWithdrawal(999);
     }
 }
 
