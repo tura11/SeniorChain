@@ -63,7 +63,7 @@ contract SeniorVault {
         uint256 currentPeriodStart; // timestamp of the start of the current period
         uint256 periodDuration; // duration of the period in seconds
     }
-
+ 
 
     struct PendingWithdrawal {
         address token;
@@ -300,5 +300,5 @@ contract SeniorVault {
         return isWhiteListed[safeAddress];
     }
     
-
+ //todo audit
 }
