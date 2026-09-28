@@ -25,7 +25,9 @@ contract SeniorVault {
     error SeniorVault__WithdrawalAlreadyExecuted();
     error SeniorVault__WithdrawalAlreadyCancelled();
     error SeniorVault__TimeLockNotExpired();
-
+    error SeniorVault__NoGuardianProposed();
+    error SeniorVault__RecipientNotWhiteListed();
+    error SeniorVault__TokenNotWhiteListed();
 
     
     event DepositedEth(address indexed user, uint256 amount);
@@ -43,20 +45,21 @@ contract SeniorVault {
 
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     uint256 public constant TIMELOCK_DURATION = 24 hours;
-    address public senior; // should be immutable
+    address public immutable senior;
     address public guardian;
     address public pendingGuardian;
     uint256 public nextWithdrawalId;
     WithdrawalLimits public withdrawalLimits;
 
-    mapping(address => bool) public isWhiteListed;
+    mapping(address => bool) public isWhiteListedToken;
+    mapping(address => bool) public isWhiteListedAddress;
     mapping(address => uint256) private _balances;
     mapping(address => bool) private _pendingRecipient;
     mapping(address => bool) private _pendingToken;
     mapping(uint256 => PendingWithdrawal) public pendingWithdrawals;
 
 
-    struct WithdrawalLimits {
+    struct WithdrawalLimits { //audit high, raw signleTxThresHOld and PerdioLimit for differnet decimals
         uint256 periodLimit;  // maximum amount that can be withdrawn in a given period
         uint256 singleTxThreshold;  // maximum amount that can be withdrawn in a single transaction 
         uint256 currentPeriodSpent; // amount spent in the current period
@@ -95,8 +98,8 @@ contract SeniorVault {
         emit DepositedEth(msg.sender, msg.value);
     }
 
-    function depositERC20(address tokenAddress, uint256 amount) external onlySenior {
-        if (!isWhiteListed[tokenAddress]) revert SeniorVault__AddressNotWhiteListed();
+    function depositERC20(address tokenAddress, uint256 amount) external onlySenior { //audit-medium, what if senior enter wrong token address?
+        if (!isWhiteListedToken[tokenAddress]) revert SeniorVault__AddressNotWhiteListed();
         _balances[tokenAddress] += amount;
 
         IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amount);
@@ -115,6 +118,7 @@ contract SeniorVault {
     }
 
     function approveNewGuardian() external onlyGuardian {
+        if(pendingGuardian == address(0)) revert SeniorVault__NoGuardianProposed();
         guardian = pendingGuardian;
         pendingGuardian = address(0);
         emit GuardianChanged(guardian);
@@ -127,14 +131,14 @@ contract SeniorVault {
 
     function approveSafeAddress(address safeAddress) external onlyGuardian {
         if (!_pendingRecipient[safeAddress]) revert SeniorVault__NotProposed();
-        isWhiteListed[safeAddress] = true;
+        isWhiteListedAddress[safeAddress] = true;
         _pendingRecipient[safeAddress] = false;
         emit AddressApproved(safeAddress);
     }
 
     function removeSafeAddress(address safeAddress) external onlyGuardian {
-        if (!isWhiteListed[safeAddress]) revert SeniorVault__AddressNotWhiteListed();
-        isWhiteListed[safeAddress] = false;
+        if (!isWhiteListedAddress[safeAddress]) revert SeniorVault__AddressNotWhiteListed();
+        isWhiteListedAddress[safeAddress] = false;
     }
 
     function proposeToken(address tokenAddress) public onlySenior {
@@ -144,7 +148,7 @@ contract SeniorVault {
 
     function approveToken(address tokenAddress) external onlyGuardian {
         if (!_pendingToken[tokenAddress]) revert SeniorVault__NotProposed();
-        isWhiteListed[tokenAddress] = true;
+        isWhiteListedToken[tokenAddress] = true;
         _pendingToken[tokenAddress] = false;
         emit TokenAddressApproved(tokenAddress);
     }
@@ -168,7 +172,7 @@ contract SeniorVault {
     function withdrawETH(address recipient, uint256 amount) external onlySenior {
         if(amount == 0) revert SeniorVault__InvalidAmount();
 
-        if (!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
+        if (!isWhiteListedAddress[recipient]) revert SeniorVault__AddressNotWhiteListed();
         if (amount > _balances[ETH_ADDRESS]) revert SeniorVault__NotEnoughMoney();
          _balances[ETH_ADDRESS] -= amount;
 
@@ -196,8 +200,8 @@ contract SeniorVault {
 
     function withdrawERC20(address recipient, uint256 amount, address tokenAddress) external onlySenior {
         if(amount == 0) revert SeniorVault__InvalidAmount();
-        if (!isWhiteListed[recipient]) revert SeniorVault__AddressNotWhiteListed();
-        if(!isWhiteListed[tokenAddress]) revert SeniorVault__TokenAddressNotWhiteListed();
+        if (!isWhiteListedAddress[recipient]) revert SeniorVault__AddressNotWhiteListed();
+        if(!isWhiteListedToken[tokenAddress]) revert SeniorVault__TokenAddressNotWhiteListed();
         if (amount > _balances[tokenAddress]) revert SeniorVault__NotEnoughMoney();
 
         _balances[tokenAddress] -= amount;
@@ -226,9 +230,12 @@ contract SeniorVault {
 
         if(w.recipient == address(0)) revert SeniorVault__WithdrawalNotFound();
         if(msg.sender != senior && msg.sender != guardian) revert SeniorVault__NoAccess();
+        if(!isWhiteListedAddress[w.recipient]) revert SeniorVault__RecipientNotWhiteListed();
+        if(!isWhiteListedToken[w.token]) revert SeniorVault__TokenNotWhiteListed();
         if(w.executed == true) revert SeniorVault__WithdrawalAlreadyExecuted();
         if(w.cancelled == true) revert SeniorVault__WithdrawalAlreadyCancelled();
         if(block.timestamp < pendingWithdrawals[withdrawalId].unlockTime) revert SeniorVault__TimeLockNotExpired();
+        
 
         address token = w.token;
         uint256 amount = w.amount;
@@ -297,7 +304,10 @@ contract SeniorVault {
     }
 
     function isAddressWhiteListed(address safeAddress) external view returns (bool) {
-        return isWhiteListed[safeAddress];
+        return isWhiteListedAddress[safeAddress];
+    }
+    function isTokenWhiteListed(address tokenAddress) external view returns (bool){
+        return isWhiteListedToken[tokenAddress];
     }
     
  //todo audit
