@@ -32,6 +32,7 @@ contract SeniorVault {
     
     event DepositedEth(address indexed user, uint256 amount);
     event DepositedERC20(address indexed token, uint256 amount);
+    event GuardianProposed(address indexed proposed);
     event GuardianChanged(address indexed newGuardian);
     event AddressApproved(address indexed safeAddress);
     event TokenAddressApproved(address indexed tokenAddress);
@@ -107,21 +108,17 @@ contract SeniorVault {
         emit DepositedERC20(tokenAddress, amount);
     }
 
-    function proposeGuardian(address _guardian) public onlySenior {
+    function proposeGuardian(address _guardian) external onlySenior {
         if (_guardian == address(0)) revert SeniorVault__InvalidAddress();
-        if (guardian == address(0)) {
-            // audit-medium what if senior enter accidently wrong address??
-            guardian = _guardian;
-        } else {
-            pendingGuardian = _guardian; //q does it matter if senior could overwrite propose before approval
-        }
+        pendingGuardian = _guardian;
+        emit GuardianProposed(_guardian);
     }
 
-    function approveNewGuardian() external onlyGuardian {
-        if(pendingGuardian == address(0)) revert SeniorVault__NoGuardianProposed();
-        guardian = pendingGuardian;
+    function acceptGuardian() external {
+        if (msg.sender != pendingGuardian) revert SeniorVault__NotProposed();
+        guardian = msg.sender;
         pendingGuardian = address(0);
-        emit GuardianChanged(guardian);
+        emit GuardianChanged(msg.sender);
     }
 
     function proposesSafeAddresses(address safeAddress) public onlySenior {
