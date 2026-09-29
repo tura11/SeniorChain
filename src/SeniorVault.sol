@@ -37,7 +37,7 @@ contract SeniorVault {
     event AddressApproved(address indexed safeAddress);
     event TokenAddressApproved(address indexed tokenAddress);
     event WithdrawedERC20(address indexed token, uint256 amount);
-    event WithdrawalLimitsChanged(uint256 periodLimit, uint256 singleTxThreshold, uint256 periodDuration);
+    event WithdrawalLimitsChanged(address indexed token, uint256 periodLimit, uint256 singleTxThreshold, uint256 periodDuration);
     event WithdrawalQueued(uint256 indexed nextWithdrawalId, address indexed recipient,uint256 amount, uint256 unlockTime);
     event WithdrawedETH(address indexed recipient, uint256 amount);
     event WithdrawalCancelledBySenior(uint256 indexed withdrawalId, address indexed recipient, uint256 amount);
@@ -50,7 +50,6 @@ contract SeniorVault {
     address public guardian;
     address public pendingGuardian;
     uint256 public nextWithdrawalId;
-    WithdrawalLimits public withdrawalLimits;
 
     mapping(address => bool) public isWhiteListedToken;
     mapping(address => bool) public isWhiteListedAddress;
@@ -58,6 +57,7 @@ contract SeniorVault {
     mapping(address => bool) private _pendingRecipient;
     mapping(address => bool) private _pendingToken;
     mapping(uint256 => PendingWithdrawal) public pendingWithdrawals;
+    mapping(address token => WithdrawalLimits) public withdrawalLimits;
 
 
     struct WithdrawalLimits { //audit high, raw signleTxThresHOld and PerdioLimit for differnet decimals
@@ -151,18 +151,19 @@ contract SeniorVault {
     }
 
 
-    function setWithdrawalLimits(uint256 _periodLimit, uint256 _singleTxThreshold, uint256 _perdioDuration) external onlyGuardian {
+    function setWithdrawalLimits(address token, uint256 _periodLimit, uint256 _singleTxThreshold, uint256 _perdioDuration) external onlyGuardian {
+        if(token !=  ETH_ADDRESS && !isWhiteListedToken[token]) revert SeniorVault__TokenNotWhiteListed();
         if(_periodLimit == 0) revert SeniorVault__InvalidPeriod();
         if(_singleTxThreshold == 0) revert SeniorVault__InvalidSingleTxThreshold();
         if(_perdioDuration == 0) revert SeniorVault__InvalidPeriodDuration();
-        withdrawalLimits = WithdrawalLimits({
+        withdrawalLimits[token] = WithdrawalLimits({
             periodLimit: _periodLimit,
             singleTxThreshold: _singleTxThreshold,
             currentPeriodSpent: 0,
             currentPeriodStart: block.timestamp,
             periodDuration: _perdioDuration
         });
-        emit WithdrawalLimitsChanged(_periodLimit, _singleTxThreshold, _perdioDuration);
+        emit WithdrawalLimitsChanged(token, _periodLimit, _singleTxThreshold, _perdioDuration);
         
     }
 
@@ -173,7 +174,7 @@ contract SeniorVault {
         if (amount > _balances[ETH_ADDRESS]) revert SeniorVault__NotEnoughMoney();
          _balances[ETH_ADDRESS] -= amount;
 
-        if(_requiresTimeLock(amount)){
+        if(_requiresTimeLock(ETH_ADDRESS, amount)){
             uint256 unlockTime = block.timestamp + TIMELOCK_DURATION;
             pendingWithdrawals[nextWithdrawalId] = PendingWithdrawal({
                 token: ETH_ADDRESS,
@@ -202,7 +203,7 @@ contract SeniorVault {
         if (amount > _balances[tokenAddress]) revert SeniorVault__NotEnoughMoney();
 
         _balances[tokenAddress] -= amount;
-        if(_requiresTimeLock(amount)){
+        if(_requiresTimeLock(tokenAddress, amount)){
             uint256 unlockTime = block.timestamp + TIMELOCK_DURATION;
             pendingWithdrawals[nextWithdrawalId] = PendingWithdrawal({
                 token: tokenAddress,
@@ -278,20 +279,21 @@ contract SeniorVault {
         if (msg.sender != guardian) revert SeniorVault__NotGuardian();
     }
 
-    function _requiresTimeLock(uint256 amount) internal  returns (bool) {
-        if (block.timestamp >= withdrawalLimits.currentPeriodStart + withdrawalLimits.periodDuration)  {
-            withdrawalLimits.currentPeriodSpent = 0;
-            withdrawalLimits.currentPeriodStart = block.timestamp;
+    function _requiresTimeLock(address token,uint256 amount) internal  returns (bool) {
+        WithdrawalLimits storage l =  withdrawalLimits[token];
+        if (block.timestamp >= l.currentPeriodStart + l.periodDuration)  {
+            l.currentPeriodSpent = 0;
+            l.currentPeriodStart = block.timestamp;
         }
 
-        if(amount > withdrawalLimits.singleTxThreshold) {
+        if(amount > l.singleTxThreshold) {
             return true;
         }
 
-        if(withdrawalLimits.currentPeriodSpent + amount > withdrawalLimits.periodLimit){
+        if(l.currentPeriodSpent + amount > l.periodLimit){
             return true;
         }
-        withdrawalLimits.currentPeriodSpent += amount;
+        l.currentPeriodSpent += amount;
         return false;
 
     }
