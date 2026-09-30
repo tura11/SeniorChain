@@ -18,10 +18,15 @@ contract SeniorVaultTest is Test {
     function setUp() public {
         senior = address(this);
         vault = new SeniorVault(senior);
-        
+
         guardian = makeAddr("guardian");
         token = new ERC20Mock();
+
+
         vault.proposeGuardian(guardian);
+        vm.prank(guardian);
+        vault.acceptGuardian();
+
         vm.deal(senior, 10 ether);
         token.mint(senior, 1000e6); // 1000 usdc
         token.approve(address(vault), 1000e6);
@@ -42,7 +47,7 @@ contract SeniorVaultTest is Test {
     function testDepositRevertIfNotSenior() public {
         vm.startPrank(guardian);
         vm.deal(guardian, 1 ether);
-        vm.expectRevert(); // expecting revert beacuse its not senior
+        vm.expectRevert(); 
         vault.deposit{value: 1 ether}();
         vm.stopPrank();
     }
@@ -85,14 +90,58 @@ contract SeniorVaultTest is Test {
         vault.depositERC20(address(token), 500e6);
     }
 
-    function testProposeAndApproveGuardian() public {
+    /////////////////////////////////////////
+    /////////// GUARDIAN TESTS //////////////
+    /////////////////////////////////////////
+
+    function testProposeAndAcceptGuardian() public {
         address guardian2 = makeAddr("guardian2");
         vm.prank(senior);
         vault.proposeGuardian(guardian2);
-        vm.prank(guardian);
-        vault.approveNewGuardian();
+
+ 
+        vm.prank(guardian2);
+        vault.acceptGuardian();
+
         assertEq(vault.guardian(), guardian2);
+        assertEq(vault.pendingGuardian(), address(0));
     }
+
+    function testAcceptGuardianRevertIfNotPending() public {
+        address stranger = makeAddr("stranger");
+        vm.prank(stranger);
+        vm.expectRevert(SeniorVault.SeniorVault__NotProposed.selector);
+        vault.acceptGuardian();
+    }
+
+    function testProposeGuardianOverwriteBeforeAcceptance() public {
+        address guardian2 = makeAddr("guardian2");
+        address guardian3 = makeAddr("guardian3");
+
+        vm.startPrank(senior);
+        vault.proposeGuardian(guardian2);
+        vault.proposeGuardian(guardian3);
+        vm.stopPrank();
+
+
+        vm.prank(guardian2);
+        vm.expectRevert(SeniorVault.SeniorVault__NotProposed.selector);
+        vault.acceptGuardian();
+
+        vm.prank(guardian3);
+        vault.acceptGuardian();
+        assertEq(vault.guardian(), guardian3);
+    }
+
+    function testProposeGuardianRevertIfZeroAddress() public {
+        vm.prank(senior);
+        vm.expectRevert(SeniorVault.SeniorVault__InvalidAddress.selector);
+        vault.proposeGuardian(address(0));
+    }
+
+    /////////////////////////////////////////
+    /////////// SAFE ADDRESS TESTS //////////
+    /////////////////////////////////////////
 
     function testProposeSafeAddress() public {
         address safeAddress1 = makeAddr("safeAddress1");
@@ -107,7 +156,7 @@ contract SeniorVaultTest is Test {
     /////////// WITHDRAW ETH TESTS //////////
     /////////////////////////////////////////
 
- function testWithdrawEthWithTimeLock() public {
+    function testWithdrawEthWithTimeLock() public {
         address safeAddress1 = makeAddr("safeAddress1");
 
         vm.prank(senior);
@@ -119,7 +168,7 @@ contract SeniorVaultTest is Test {
         vault.deposit{value: 5 ether}();
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(5 ether, 2 ether, 86400);
+        vault.setWithdrawalLimits(ETH_ADDRESS, 5 ether, 2 ether, 86400);
 
         vm.prank(senior);
         vault.withdrawETH(safeAddress1, 3 ether);
@@ -127,7 +176,7 @@ contract SeniorVaultTest is Test {
         assertEq(vault.getUserTokenBalance(ETH_ADDRESS), 2 ether);
 
         (
-            address token,
+            address wToken,
             uint256 amount,
             address recipient,
             uint256 unlockTime,
@@ -135,18 +184,16 @@ contract SeniorVaultTest is Test {
             bool cancelled
         ) = vault.pendingWithdrawals(0);
 
-        assertEq(token, ETH_ADDRESS);
+        assertEq(wToken, ETH_ADDRESS);
         assertEq(amount, 3 ether);
         assertEq(recipient, safeAddress1);
-        assertEq(unlockTime, block.timestamp + 86400);        
+        assertEq(unlockTime, block.timestamp + 86400);
         assertEq(executed, false);
         assertEq(cancelled, false);
         assertEq(vault.getUserTokenBalance(ETH_ADDRESS), 2 ether);
-        assertEq(vault.getUserTokenBalance(safeAddress1), 0 ether);
     }
 
-
-    function withdrawETHWithoutTimeLock() public {
+    function testWithdrawETHWithoutTimeLock() public {
         address safeAddress1 = makeAddr("safeAddress1");
 
         vm.prank(senior);
@@ -158,15 +205,16 @@ contract SeniorVaultTest is Test {
         vault.deposit{value: 5 ether}();
 
 
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(ETH_ADDRESS, 5 ether, 4 ether, 86400);
+
         vm.prank(senior);
         vault.withdrawETH(safeAddress1, 3 ether);
 
-
         assertEq(vault.getUserTokenBalance(ETH_ADDRESS), 2 ether);
-
-        assertEq(vault.getUserTokenBalance(safeAddress1), 3 ether);
-        
+        assertEq(safeAddress1.balance, 3 ether);
     }
+
     function testWithdrawEthRevertIfNotEnoughMoney() public {
         address safeAddress1 = makeAddr("safeAddress1");
 
@@ -211,8 +259,7 @@ contract SeniorVaultTest is Test {
         vault.deposit{value: 1 ether}();
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(5 ether, 2 ether, 86400);
-
+        vault.setWithdrawalLimits(ETH_ADDRESS, 5 ether, 2 ether, 86400);
 
         vm.prank(senior);
         vm.expectRevert(SeniorVault.SeniorVault__TransferFailed.selector);
@@ -242,7 +289,7 @@ contract SeniorVaultTest is Test {
         vault.depositERC20(address(token), 500e6);
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(1000e6, 500e6, 86400);
+        vault.setWithdrawalLimits(address(token), 1000e6, 500e6, 86400);
 
         vm.prank(senior);
         vault.withdrawERC20(safeAddress1, 200e6, address(token));
@@ -325,10 +372,8 @@ contract SeniorVaultTest is Test {
         vm.prank(senior);
         vault.depositERC20(address(token), 500e6);
 
-
         vm.prank(guardian);
-        vault.setWithdrawalLimits(1000e6, 500e6, 86400);
-
+        vault.setWithdrawalLimits(address(token), 1000e6, 500e6, 86400);
 
         vm.prank(senior);
         vm.expectEmit(true, false, false, true);
@@ -336,6 +381,9 @@ contract SeniorVaultTest is Test {
         vault.withdrawERC20(safeAddress1, 200e6, address(token));
     }
 
+    /////////////////////////////////////////
+    /////////// EXECUTE WITHDRAWAL TESTS ////
+    /////////////////////////////////////////
 
     function testExecuteWithdrawalERC20Success() public {
         address safeAddress1 = makeAddr("safeAddress1");
@@ -349,13 +397,11 @@ contract SeniorVaultTest is Test {
         vault.approveToken(address(token));
         vm.stopPrank();
 
-
         vm.prank(senior);
-
         vault.depositERC20(address(token), 1000e6);
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(500e6, 200e6, 86400);
+        vault.setWithdrawalLimits(address(token), 500e6, 200e6, 86400);
 
         vm.prank(senior);
         vault.withdrawERC20(safeAddress1, 300e6, address(token));
@@ -367,8 +413,8 @@ contract SeniorVaultTest is Test {
         vm.prank(senior);
         vault.executeWithdrawal(0);
 
-         (
-            address token,
+        (
+            address wToken,
             uint256 amount,
             address recipient,
             uint256 unlockTime,
@@ -376,7 +422,7 @@ contract SeniorVaultTest is Test {
             bool cancelled
         ) = vault.pendingWithdrawals(0);
 
-        assertEq(token, address(token));
+        assertEq(wToken, address(token));
         assertEq(amount, 300e6);
         assertEq(recipient, safeAddress1);
         assertEq(unlockTime, queuedAt + 24 hours);
@@ -384,7 +430,7 @@ contract SeniorVaultTest is Test {
         assertEq(cancelled, false);
     }
 
-    function testExecuteWIthdrwalETHSuccess() public {
+    function testExecuteWithdrawalETHSuccess() public {
         address safeAddress1 = makeAddr("safeAddress1");
         vm.startPrank(senior);
         vault.proposesSafeAddresses(safeAddress1);
@@ -394,13 +440,11 @@ contract SeniorVaultTest is Test {
         vault.approveSafeAddress(safeAddress1);
         vm.stopPrank();
 
-
         vm.prank(senior);
-
         vault.deposit{value: 2 ether}();
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(2 ether, 1 ether, 86400);
+        vault.setWithdrawalLimits(ETH_ADDRESS, 2 ether, 1 ether, 86400);
 
         vm.prank(senior);
         vault.withdrawETH(safeAddress1, 2 ether);
@@ -412,8 +456,8 @@ contract SeniorVaultTest is Test {
         vm.prank(guardian);
         vault.executeWithdrawal(0);
 
-         (
-            address token,
+        (
+            address wToken,
             uint256 amount,
             address recipient,
             uint256 unlockTime,
@@ -421,23 +465,22 @@ contract SeniorVaultTest is Test {
             bool cancelled
         ) = vault.pendingWithdrawals(0);
 
-        assertEq(token, ETH_ADDRESS);
+        assertEq(wToken, ETH_ADDRESS);
         assertEq(amount, 2 ether);
         assertEq(recipient, safeAddress1);
         assertEq(unlockTime, queuedAt + 24 hours);
         assertEq(executed, true);
         assertEq(cancelled, false);
-    
     }
 
-   function testExecuteWithdrawalRevertIfNotFound() public {
+    function testExecuteWithdrawalRevertIfNotFound() public {
         vm.prank(senior);
         vm.expectRevert(SeniorVault.SeniorVault__WithdrawalNotFound.selector);
-        vault.executeWithdrawal(999); // nikt nigdy nie zakolejkował ID 999
+        vault.executeWithdrawal(999); 
     }
 
     function testExecuteWithdrawalRevertIfNoAccess() public {
-         address safeAddress1 = makeAddr("safeAddress1");
+        address safeAddress1 = makeAddr("safeAddress1");
         vm.startPrank(senior);
         vault.proposesSafeAddresses(safeAddress1);
         vault.proposeToken(address(token));
@@ -448,25 +491,50 @@ contract SeniorVaultTest is Test {
         vault.approveToken(address(token));
         vm.stopPrank();
 
-
         vm.prank(senior);
-
         vault.depositERC20(address(token), 1000e6);
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(500e6, 200e6, 86400);
+        vault.setWithdrawalLimits(address(token), 500e6, 200e6, 86400);
 
         vm.prank(senior);
         vault.withdrawERC20(safeAddress1, 300e6, address(token));
 
-        uint256 queuedAt = block.timestamp;
-
         vm.warp(block.timestamp + 24 hours);
-
 
         address actor = makeAddr("actor");
         vm.prank(actor);
         vm.expectRevert(SeniorVault.SeniorVault__NoAccess.selector);
+        vault.executeWithdrawal(0);
+    }
+
+    function testExecuteWithdrawalRevertIfRecipientRemovedFromWhitelist() public {
+
+        address safeAddress1 = makeAddr("safeAddress1");
+        vm.startPrank(senior);
+        vault.proposesSafeAddresses(safeAddress1);
+        vm.stopPrank();
+
+        vm.startPrank(guardian);
+        vault.approveSafeAddress(safeAddress1);
+        vm.stopPrank();
+
+        vm.prank(senior);
+        vault.deposit{value: 2 ether}();
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(ETH_ADDRESS, 2 ether, 1 ether, 86400);
+
+        vm.prank(senior);
+        vault.withdrawETH(safeAddress1, 2 ether);
+
+        vm.prank(guardian);
+        vault.removeSafeAddress(safeAddress1);
+
+        vm.warp(block.timestamp + 24 hours);
+
+        vm.prank(senior);
+        vm.expectRevert(SeniorVault.SeniorVault__RecipientNotWhiteListed.selector);
         vault.executeWithdrawal(0);
     }
 
@@ -480,18 +548,14 @@ contract SeniorVaultTest is Test {
         vault.approveSafeAddress(safeAddress1);
         vm.stopPrank();
 
-
         vm.prank(senior);
-
         vault.deposit{value: 2 ether}();
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(2 ether, 1 ether, 86400);
+        vault.setWithdrawalLimits(ETH_ADDRESS, 2 ether, 1 ether, 86400);
 
         vm.prank(senior);
         vault.withdrawETH(safeAddress1, 2 ether);
-
-        uint256 queuedAt = block.timestamp;
 
         vm.warp(block.timestamp + 24 hours);
 
@@ -501,9 +565,7 @@ contract SeniorVaultTest is Test {
         vm.prank(senior);
         vm.expectRevert(SeniorVault.SeniorVault__WithdrawalAlreadyExecuted.selector);
         vault.executeWithdrawal(0);
-
     }
-
 
     function testExecuteWithdrawalRevertIfWithdrwalAlreadyCancelled() public {
         address safeAddress1 = makeAddr("safeAddress1");
@@ -515,18 +577,14 @@ contract SeniorVaultTest is Test {
         vault.approveSafeAddress(safeAddress1);
         vm.stopPrank();
 
-
         vm.prank(senior);
-
         vault.deposit{value: 2 ether}();
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(2 ether, 1 ether, 86400);
+        vault.setWithdrawalLimits(ETH_ADDRESS, 2 ether, 1 ether, 86400);
 
         vm.prank(senior);
         vault.withdrawETH(safeAddress1, 2 ether);
-
-        uint256 queuedAt = block.timestamp;
 
         vm.warp(block.timestamp + 24 hours);
 
@@ -536,9 +594,7 @@ contract SeniorVaultTest is Test {
         vm.prank(senior);
         vm.expectRevert(SeniorVault.SeniorVault__WithdrawalAlreadyCancelled.selector);
         vault.cancelWithdrawal(0);
-
     }
-
 
     function testExecuteWithdrawalRevertIfTimlockExipired() public {
         address safeAddress1 = makeAddr("safeAddress1");
@@ -550,18 +606,14 @@ contract SeniorVaultTest is Test {
         vault.approveSafeAddress(safeAddress1);
         vm.stopPrank();
 
-
         vm.prank(senior);
-
         vault.deposit{value: 2 ether}();
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(2 ether, 1 ether, 86400);
+        vault.setWithdrawalLimits(ETH_ADDRESS, 2 ether, 1 ether, 86400);
 
         vm.prank(senior);
         vault.withdrawETH(safeAddress1, 2 ether);
-
-        uint256 queuedAt = block.timestamp;
 
         vm.warp(block.timestamp + 23 hours);
 
@@ -570,7 +622,9 @@ contract SeniorVaultTest is Test {
         vault.executeWithdrawal(0);
     }
 
- 
+    /////////////////////////////////////////
+    /////////// CANCEL WITHDRAWAL TESTS /////
+    /////////////////////////////////////////
 
     function testCancelWithdrwalERC20() public {
         address safeAddress1 = makeAddr("safeAddress1");
@@ -584,24 +638,20 @@ contract SeniorVaultTest is Test {
         vault.approveToken(address(token));
         vm.stopPrank();
 
-
         vm.prank(senior);
-
         vault.depositERC20(address(token), 1000e6);
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(500e6, 200e6, 86400);
+        vault.setWithdrawalLimits(address(token), 500e6, 200e6, 86400);
 
         vm.prank(senior);
         vault.withdrawERC20(safeAddress1, 300e6, address(token));
 
-
-
         vm.prank(senior);
         vault.cancelWithdrawal(0);
 
-         (
-            address token,
+        (
+            address wToken,
             uint256 amount,
             address recipient,
             uint256 unlockTime,
@@ -609,16 +659,15 @@ contract SeniorVaultTest is Test {
             bool cancelled
         ) = vault.pendingWithdrawals(0);
 
-        assertEq(token, address(token));
+        assertEq(wToken, address(token));
         assertEq(amount, 300e6);
         assertEq(recipient, safeAddress1);
         assertEq(unlockTime, block.timestamp + 86400);
         assertEq(executed, false);
         assertEq(cancelled, true);
-    
     }
 
-     function testCancelWithdrawalETH() public {
+    function testCancelWithdrawalETH() public {
         address safeAddress1 = makeAddr("safeAddress1");
         vm.startPrank(senior);
         vault.proposesSafeAddresses(safeAddress1);
@@ -628,13 +677,11 @@ contract SeniorVaultTest is Test {
         vault.approveSafeAddress(safeAddress1);
         vm.stopPrank();
 
-
         vm.prank(senior);
-
         vault.deposit{value: 2 ether}();
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(2 ether, 1 ether, 86400);
+        vault.setWithdrawalLimits(ETH_ADDRESS, 2 ether, 1 ether, 86400);
 
         vm.prank(senior);
         vault.withdrawETH(safeAddress1, 2 ether);
@@ -642,8 +689,8 @@ contract SeniorVaultTest is Test {
         vm.prank(guardian);
         vault.cancelWithdrawal(0);
 
-         (
-            address token,
+        (
+            address wToken,
             uint256 amount,
             address recipient,
             uint256 unlockTime,
@@ -651,20 +698,20 @@ contract SeniorVaultTest is Test {
             bool cancelled
         ) = vault.pendingWithdrawals(0);
 
-        assertEq(token, ETH_ADDRESS);
+        assertEq(wToken, ETH_ADDRESS);
         assertEq(amount, 2 ether);
         assertEq(recipient, safeAddress1);
         assertEq(unlockTime, block.timestamp + 86400);
         assertEq(executed, false);
         assertEq(cancelled, true);
-    
     }
 
-       function testCancelWithdrawalRevertIfNotFound() public {
+    function testCancelWithdrawalRevertIfNotFound() public {
         vm.prank(senior);
         vm.expectRevert(SeniorVault.SeniorVault__WithdrawalNotFound.selector);
         vault.cancelWithdrawal(999);
     }
+
     function testCancelWithdrawalRevertIfNoAccess() public {
         address safeAddress1 = makeAddr("safeAddress1");
         address stranger = makeAddr("stranger");
@@ -679,7 +726,7 @@ contract SeniorVaultTest is Test {
         vault.deposit{value: 5 ether}();
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(5 ether, 2 ether, 86400); // wymusza timelock na 3 ether
+        vault.setWithdrawalLimits(ETH_ADDRESS, 5 ether, 2 ether, 86400);
 
         vm.prank(senior);
         vault.withdrawETH(safeAddress1, 3 ether); // withdrawalId 0
@@ -702,7 +749,7 @@ contract SeniorVaultTest is Test {
         vault.deposit{value: 5 ether}();
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(5 ether, 2 ether, 86400);
+        vault.setWithdrawalLimits(ETH_ADDRESS, 5 ether, 2 ether, 86400);
 
         vm.prank(senior);
         vault.withdrawETH(safeAddress1, 3 ether); // withdrawalId 0
@@ -729,7 +776,7 @@ contract SeniorVaultTest is Test {
         vault.deposit{value: 5 ether}();
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(5 ether, 2 ether, 86400);
+        vault.setWithdrawalLimits(ETH_ADDRESS, 5 ether, 2 ether, 86400);
 
         vm.prank(senior);
         vault.withdrawETH(safeAddress1, 3 ether); // withdrawalId 0
@@ -752,8 +799,8 @@ contract RejectEther {
 contract SeniorVaultHarness is SeniorVault {
     constructor(address _senior) SeniorVault(_senior) {}
 
-    function exposedRequiresTimeLock(uint256 amount) external returns (bool) {
-        return _requiresTimeLock(amount);
+    function exposedRequiresTimeLock(address token, uint256 amount) external returns (bool) {
+        return _requiresTimeLock(token, amount);
     }
 }
 
@@ -761,48 +808,63 @@ contract RequiresTimeLockTest is Test {
     SeniorVaultHarness public vault;
     address public senior;
     address public guardian;
+    address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     function setUp() public {
         senior = address(this);
         vault = new SeniorVaultHarness(senior);
 
         guardian = makeAddr("guardian");
-        vault.proposeGuardian(guardian); 
+        vault.proposeGuardian(guardian);
+        vm.prank(guardian);
+        vault.acceptGuardian();
 
         vm.prank(guardian);
-        vault.setWithdrawalLimits(1000 ether, 500 ether, 1 days); 
-      
+        vault.setWithdrawalLimits(ETH_ADDRESS, 1000 ether, 500 ether, 1 days);
     }
 
     function testUnderBothLimitsReturnsFalse() public {
-        assertFalse(vault.exposedRequiresTimeLock(100 ether));
+        assertFalse(vault.exposedRequiresTimeLock(ETH_ADDRESS, 100 ether));
     }
 
     function testExceedsSingleTxReturnsTrue() public {
-        assertTrue(vault.exposedRequiresTimeLock(600 ether));
+        assertTrue(vault.exposedRequiresTimeLock(ETH_ADDRESS, 600 ether));
     }
 
     function testPeriodSpentAccumulatesThenExceeds() public {
-        assertFalse(vault.exposedRequiresTimeLock(400 ether)); // spent = 400
-        assertFalse(vault.exposedRequiresTimeLock(400 ether)); // 400+400=800, OK
-        assertTrue(vault.exposedRequiresTimeLock(300 ether));  // 800+300=1100 > 1000
+        assertFalse(vault.exposedRequiresTimeLock(ETH_ADDRESS, 400 ether)); // spent = 400
+        assertFalse(vault.exposedRequiresTimeLock(ETH_ADDRESS, 400 ether)); // 400+400=800, OK
+        assertTrue(vault.exposedRequiresTimeLock(ETH_ADDRESS, 300 ether));  // 800+300=1100 > 1000
     }
 
     function testWindowResetsAfterDuration() public {
-        vault.exposedRequiresTimeLock(400 ether); // spent = 400
+        vault.exposedRequiresTimeLock(ETH_ADDRESS, 400 ether); // spent = 400
         vm.warp(block.timestamp + 1 days + 1);
-        assertFalse(vault.exposedRequiresTimeLock(400 ether)); //  0+400 < 1000
+        assertFalse(vault.exposedRequiresTimeLock(ETH_ADDRESS, 400 ether)); // 0+400 < 1000
     }
 
     function testExactlyAtBoundaryResets() public {
-        (, , , uint256 startBefore,) = vault.withdrawalLimits();
-        vm.warp(startBefore + 1 days); 
+        (, , , uint256 startBefore, ) = vault.withdrawalLimits(ETH_ADDRESS);
+        vm.warp(startBefore + 1 days);
 
-        vault.exposedRequiresTimeLock(100 ether);
+        vault.exposedRequiresTimeLock(ETH_ADDRESS, 100 ether);
 
-        (, , uint256 spentAfter, uint256 startAfter,) = vault.withdrawalLimits();
-        assertEq(spentAfter, 100 ether); 
+        (, , uint256 spentAfter, uint256 startAfter, ) = vault.withdrawalLimits(ETH_ADDRESS);
+        assertEq(spentAfter, 100 ether);
         assertEq(startAfter, startBefore + 1 days);
     }
-}
 
+    function testDifferentTokensHaveIndependentLimits() public {
+        address usdc = makeAddr("usdc-mock");
+
+        vault.proposeToken(usdc);       
+        vm.prank(guardian);
+        vault.approveToken(usdc);
+
+        vm.prank(guardian);
+        vault.setWithdrawalLimits(usdc, 1000e6, 500e6, 1 days);
+
+        assertTrue(vault.exposedRequiresTimeLock(ETH_ADDRESS, 600 ether));
+        assertFalse(vault.exposedRequiresTimeLock(usdc, 400e6));
+    }
+}

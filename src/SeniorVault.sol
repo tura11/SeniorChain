@@ -229,7 +229,7 @@ contract SeniorVault {
         if(w.recipient == address(0)) revert SeniorVault__WithdrawalNotFound();
         if(msg.sender != senior && msg.sender != guardian) revert SeniorVault__NoAccess();
         if(!isWhiteListedAddress[w.recipient]) revert SeniorVault__RecipientNotWhiteListed();
-        if(!isWhiteListedToken[w.token]) revert SeniorVault__TokenNotWhiteListed();
+        if(w.token != ETH_ADDRESS && !isWhiteListedToken[w.token]) revert SeniorVault__TokenNotWhiteListed();
         if(w.executed == true) revert SeniorVault__WithdrawalAlreadyExecuted();
         if(w.cancelled == true) revert SeniorVault__WithdrawalAlreadyCancelled();
         if(block.timestamp < pendingWithdrawals[withdrawalId].unlockTime) revert SeniorVault__TimeLockNotExpired();
