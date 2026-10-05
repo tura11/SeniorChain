@@ -14,7 +14,7 @@ contract SeniorVaultFactory is Ownable, Pausable {
 
     mapping(address senior => address vault) public seniorToVault;
 
-
+    constructor() Ownable() {}
 
     function createVault() external whenNotPaused returns(address){
         if(seniorToVault[msg.sender] != address(0)) revert VaultAlredyExist();
