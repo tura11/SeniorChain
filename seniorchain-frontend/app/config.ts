@@ -3,7 +3,7 @@ import { sepolia } from 'wagmi/chains'
 
 export const config = getDefaultConfig({
   appName: 'SeniorChain',
-  projectId: 'NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID',
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
   chains: [sepolia],
   ssr: true,
 })
