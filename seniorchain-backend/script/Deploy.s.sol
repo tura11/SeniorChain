@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity ^0.8.28;
 
-import {Script, console} from "lib/forge-std/src/Script.sol";
+import {Script, console} from "forge-std/Script.sol";
 import {SeniorVaultFactory} from "../src/SeniorVaultFactory.sol";
 
 contract Deploy is Script {
@@ -12,4 +12,5 @@ contract Deploy is Script {
 
         console.log("SeniorVaultFactory deployed at:", address(factory));
     }
+    function test() internal {}
 } //contract address 0xDb753ccd7d144f72e1654f7a80c950F655D28879

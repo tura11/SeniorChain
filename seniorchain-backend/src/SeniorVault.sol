@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -32,7 +32,7 @@ contract SeniorVault {
     error SeniorVault__NoGuardianProposed();
     error SeniorVault__RecipientNotWhiteListed();
     error SeniorVault__TokenNotWhiteListed();
-    
+    error SeniorVault__Cancelled();
 
     error SeniorVault__NoRecoveryPending();
     error SeniorVault__RecoveryTimeLockNotExpired();

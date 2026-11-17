@@ -1,26 +1,48 @@
-// SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
-import {Test, console} from "forge-std/Test.sol";
-import {SeniorVaultFactory} from "../src/SeniorVaultFactory.sol";
-import {SeniorVault} from "../src/SeniorVault.sol";
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.28;
+
+import {Test} from "forge-std/Test.sol";
+import {SeniorVaultFactory} from "../../src/SeniorVaultFactory.sol";
+import {SeniorVault} from "../../src/SeniorVault.sol";
 
 contract SeniorVaultFactoryTest is Test {
     SeniorVaultFactory public factory;
 
-    address public owner = makeAddr("owner");
-    address public senior1 = makeAddr("senior1");
-    address public senior2 = makeAddr("senior2");
+    address public owner;
+    address public senior1;
+    address public senior2;
+    address public guardian;
+    address public newSenior;
+    address public stranger;
 
     event VaultCreated(address indexed user, address indexed vault);
 
     function setUp() public {
+        owner = makeAddr("owner");
+        senior1 = makeAddr("senior1");
+        senior2 = makeAddr("senior2");
+        guardian = makeAddr("guardian");
+        newSenior = makeAddr("newSenior");
+        stranger = makeAddr("stranger");
+
         vm.prank(owner);
         factory = new SeniorVaultFactory();
     }
 
-    /*//////////////////////////////////////////////////////////
-                        CREATE VAULT - HAPPY PATH
-    //////////////////////////////////////////////////////////*/
+    function _createVaultWithGuardian(address senior) internal returns (SeniorVault v) {
+        vm.prank(senior);
+        v = SeniorVault(factory.createVault());
+
+        vm.prank(senior);
+        v.proposeGuardian(guardian);
+
+        vm.prank(guardian);
+        v.acceptGuardian();
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                         CREATE VAULT - HAPPY PATH
+    //////////////////////////////////////////////////////////////*/
 
     function testCreateVaultSuccess() public {
         vm.prank(senior1);
@@ -31,8 +53,6 @@ contract SeniorVaultFactoryTest is Test {
     }
 
     function testCreateVaultEmitsEvent() public {
-        // Obliczamy adres vaulta przed deploymentem, żeby zweryfikować event
-        // (CREATE opcode -> adres deterministyczny na podstawie noncè fabryki)
         uint64 nonce = vm.getNonce(address(factory));
         address predictedVault = vm.computeCreateAddress(address(factory), nonce);
 
@@ -66,9 +86,9 @@ contract SeniorVaultFactoryTest is Test {
         assertGt(codeSize, 0, "Deployed vault should have code");
     }
 
-    /*//////////////////////////////////////////////////////////
-                    CREATE VAULT - REVERT CONDITIONS
-    //////////////////////////////////////////////////////////*/
+    /*//////////////////////////////////////////////////////////////
+                       CREATE VAULT - REVERT CONDITIONS
+    //////////////////////////////////////////////////////////////*/
 
     function testRevertWhenCreateVaultCalledTwiceBySameSenior() public {
         vm.startPrank(senior1);
@@ -84,17 +104,18 @@ contract SeniorVaultFactoryTest is Test {
         factory.pause();
 
         vm.prank(senior1);
-        vm.expectRevert(); // Pausable: EnforcedPause
+        vm.expectRevert();
         factory.createVault();
     }
 
-    /*//////////////////////////////////////////////////////////
-                        PAUSE / UNPAUSE - ACCESS CONTROL
-    //////////////////////////////////////////////////////////*/
+    /*//////////////////////////////////////////////////////////////
+                       PAUSE / UNPAUSE - ACCESS CONTROL
+    //////////////////////////////////////////////////////////////*/
 
     function testPauseOnlyOwnerCanPause() public {
         vm.prank(owner);
         factory.pause();
+
         assertTrue(factory.paused());
     }
 
@@ -130,12 +151,13 @@ contract SeniorVaultFactoryTest is Test {
 
         vm.prank(senior1);
         address vaultAddr = factory.createVault();
+
         assertTrue(vaultAddr != address(0));
     }
 
-    /*//////////////////////////////////////////////////////////
-                            FUZZ TESTS
-    //////////////////////////////////////////////////////////*/
+    /*//////////////////////////////////////////////////////////////
+                              FUZZ TESTS
+    //////////////////////////////////////////////////////////////*/
 
     function testFuzzCreateVaultDifferentSeniorsGetUniqueVaults(address senior) public {
         vm.assume(senior != address(0));
@@ -145,5 +167,33 @@ contract SeniorVaultFactoryTest is Test {
         address vaultAddr = factory.createVault();
 
         assertEq(factory.seniorToVault(senior), vaultAddr);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                         SENIOR RECOVERY / MAPPING
+    //////////////////////////////////////////////////////////////*/
+
+    function testUpdateSeniorAddressRevertsIfCallerIsNotVault() public {
+        _createVaultWithGuardian(senior1);
+
+        vm.prank(stranger);
+        vm.expectRevert(bytes4(keccak256("NotVault()")));
+        factory.updateSeniorAddress(senior1, newSenior);
+    }
+
+    function testRecoveryUpdatesFactoryMapping() public {
+        SeniorVault v = _createVaultWithGuardian(senior1);
+        assertEq(factory.seniorToVault(senior1), address(v));
+
+        vm.prank(guardian);
+        v.proposeNewSenior(newSenior);
+
+        vm.warp(v.recoveryUnlockTime());
+        vm.prank(newSenior);
+        v.executeRecovery();
+
+        assertEq(v.senior(), newSenior);
+        assertEq(factory.seniorToVault(senior1), address(0));
+        assertEq(factory.seniorToVault(newSenior), address(v));
     }
 }

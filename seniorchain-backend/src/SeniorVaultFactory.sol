@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity ^0.8.28;
 
 import {SeniorVault} from "./SeniorVault.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -15,7 +15,7 @@ contract SeniorVaultFactory is Ownable, Pausable {
 
     mapping(address senior => address vault) public seniorToVault;
 
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable() {}
 
     function createVault() external whenNotPaused returns (address) {
         if (seniorToVault[msg.sender] != address(0)) revert VaultAlredyExist();

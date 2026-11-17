@@ -8,3 +8,8 @@ libs = ["lib"]
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/"
 ]
+
+[invariant]
+runs = 1000
+depth = 100
+fail_on_revert = true
